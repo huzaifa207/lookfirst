@@ -1,0 +1,49 @@
+# Builds the desktop app for macOS, Windows and Linux when a version tag is pushed, and attaches the
+# installers to a draft GitHub release to check and publish by hand.
+#   git tag v0.1.0 && git push origin v0.1.0
+# The builds aren't code-signed yet, so macOS and Windows warn on first open (see the README).
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            args: --target universal-apple-darwin
+          - os: windows-latest
+            args: ""
+          - os: ubuntu-22.04
+            args: ""
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          targets: ${{ runner.os == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+      - run: cargo test -p lookfirst-core
+      - uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # action-v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: app
+          tauriScript: npx --yes @tauri-apps/cli@2.12.4
+          args: ${{ matrix.args }}
+          tagName: ${{ github.ref_name }}
+          releaseName: LookFirst ${{ github.ref_name }}
+          releaseBody: Download the file for your computer below. These builds aren't code-signed yet; the README explains the one-time warning.
+          releaseDraft: true

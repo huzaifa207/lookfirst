@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability in LookFirst
+    url: https://github.com/huzaifa207/lookfirst/security/advisories/new
+    about: Privately, not as a public issue.
+  - name: Opened something it warned about?
+    url: https://github.com/huzaifa207/lookfirst#if-it-says-dont-open-this
+    about: What to do first, before opening an issue.

@@ -1,0 +1,25 @@
+name: Missed detection
+description: A file that runs code by itself, or a known indicator, that LookFirst didn't catch.
+labels: ["missed detection"]
+body:
+  - type: markdown
+    attributes:
+      value: Never attach malware. Describe the file, or give its path, hash and the public report it comes from.
+  - type: textarea
+    id: what
+    attributes:
+      label: What it missed
+      description: Where the file sits (for example `.git/hooks/post-merge`), what runs it, and what it does.
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Public source
+      description: An advisory, vendor report or write-up describing it.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: LookFirst version

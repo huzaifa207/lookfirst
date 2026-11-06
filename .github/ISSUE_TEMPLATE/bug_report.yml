@@ -1,0 +1,27 @@
+name: Bug report
+description: The app or CLI crashed, couldn't open a file it should, or did something unexpected.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you saw instead.
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Your computer
+      placeholder: macOS 15 (Apple silicon), Windows 11, Ubuntu 24.04…
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: LookFirst version
+  - type: input
+    id: file
+    attributes:
+      label: The kind of file
+      description: For example "a .7z made with 7-Zip 24", or "a folder". Don't attach it if it might be malicious.

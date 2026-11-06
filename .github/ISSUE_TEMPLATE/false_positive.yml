@@ -1,0 +1,27 @@
+name: False positive
+description: It flagged a file that's fine.
+labels: ["false positive"]
+body:
+  - type: markdown
+    attributes:
+      value: Don't attach the archive if it might be malicious, and edit out private paths if they matter to you.
+  - type: textarea
+    id: finding
+    attributes:
+      label: What it reported
+      description: Copy it from the app with "Copy the report", or from the CLI's output.
+      placeholder: "[CHECK] app/package.json  This runs commands when someone installs the project with npm."
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why it's harmless
+      description: What the file really is, with a link to where it comes from if you have one.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: LookFirst version
+      description: From the release you downloaded, or `lookfirst --version`
