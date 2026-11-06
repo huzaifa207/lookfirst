@@ -29,7 +29,8 @@ fn zip_of(files: &[F]) -> tempfile::NamedTempFile {
     let tmp = tempfile::Builder::new().suffix(".zip").tempfile().unwrap();
     let mut zip = zip::ZipWriter::new(tmp.reopen().unwrap());
     for file in files {
-        let opts = zip::write::SimpleFileOptions::default().unix_permissions(file.mode);
+        // Unix, so the permissions are kept: the writer defaults to DOS on Windows.
+        let opts = zip::write::SimpleFileOptions::default().system(zip::System::Unix).unix_permissions(file.mode);
         zip.start_file(file.path, opts).unwrap();
         zip.write_all(file.data).unwrap();
     }
@@ -90,6 +91,17 @@ fn hook_in_a_zip_and_its_execute_bit() {
     let report = scan(&zip_of(&[exe("p/.git/hooks/post-merge", HOOK)]));
     assert_eq!(report.findings[0].level, Level::Danger);
     assert!(report.findings[0].title.contains("pulls or merges"));
+
+    // A zip made on Windows has no Unix permissions, so the hook counts as one that runs.
+    let tmp = tempfile::Builder::new().suffix(".zip").tempfile().unwrap();
+    let mut zip = zip::ZipWriter::new(tmp.reopen().unwrap());
+    zip.start_file("p/.git/hooks/post-merge", zip::write::SimpleFileOptions::default().system(zip::System::Dos))
+        .unwrap();
+    zip.write_all(HOOK.as_bytes()).unwrap();
+    zip.finish().unwrap();
+    let report = scan(&tmp);
+    assert_eq!(report.findings[0].level, Level::Danger, "{:?}", titles(&report));
+    assert!(!report.findings[0].detail.contains("not marked executable"));
 }
 
 #[test]

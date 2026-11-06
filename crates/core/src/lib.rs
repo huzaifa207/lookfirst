@@ -124,6 +124,17 @@ enum Format {
     Other,
 }
 
+/// Permissions only mean something in a zip made on Unix. For one made on Windows the zip
+/// library invents a mode with no execute bit, which would wrongly make a hook look switched off
+/// (Git for Windows runs hooks either way).
+fn unix_mode(system: zip::System, mode: Option<u32>) -> Option<u32> {
+    if system == zip::System::Unix {
+        mode
+    } else {
+        None
+    }
+}
+
 fn sniff(head: &[u8]) -> Format {
     match head {
         [b'P', b'K', 3 | 5 | 7, 4 | 6 | 8, ..] => Format::Zip,
@@ -198,7 +209,7 @@ impl Scan<'_> {
                 let entry = Entry {
                     path: raw.name().map_err(io::Error::other)?.into_owned(),
                     kind: if raw.is_dir() { Kind::Dir } else { Kind::File },
-                    mode: raw.unix_mode(),
+                    mode: unix_mode(raw.system(), raw.unix_mode()),
                     size: raw.size(),
                     encrypted: true,
                 };
@@ -217,7 +228,13 @@ impl Scan<'_> {
             } else {
                 Kind::File
             };
-            let entry = Entry { path, kind, mode: file.unix_mode(), size: file.size(), encrypted: false };
+            let entry = Entry {
+                path,
+                kind,
+                mode: unix_mode(file.system(), file.unix_mode()),
+                size: file.size(),
+                encrypted: false,
+            };
             self.read_and_visit(&entry, &mut file)?;
         }
         Ok(())
