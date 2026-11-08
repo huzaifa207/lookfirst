@@ -1,0 +1,338 @@
+//! Indicators from two known campaigns, ported from the scanners written for them
+//! (github.com/huzaifa207/shai-hulud-scan and github.com/huzaifa207/polinrider-scan), with the
+//! same sources and the same false-positive lessons. A match names the campaign.
+
+use crate::{Finding, Level};
+use regex::Regex;
+use sha2::{Digest, Sha256};
+use std::collections::HashSet;
+use std::sync::LazyLock;
+
+pub(crate) const SHAI_HULUD: &str = "Shai-Hulud npm worm";
+pub(crate) const POLINRIDER: &str = "PolinRider";
+
+/// npm versions the Shai-Hulud "ChainDrop" wave published (Datadog and Unit 42, 2026-11-02).
+static COMPROMISED: LazyLock<HashSet<(String, String)>> = LazyLock::new(|| {
+    include_str!("../data/shai-hulud-packages.txt")
+        .lines()
+        .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+        .filter_map(|l| l.split_once(' ').map(|(n, v)| (n.to_string(), v.trim().to_string())))
+        .collect()
+});
+/// SHA-256 of the worm's files, from Unit 42 and the CSA advisory.
+const HASHES: &[(&str, &str)] = &[
+    ("54dc7ea54a1317cca0e890a2770630cf7fa6c97813e0cb9d2caa93012b350668", "the worm's loader"),
+    ("fd3ca4007b225fdf8de7af4345a19179d5efa8c4bb9205f88cda806e5684b1eb", "the worm's loader"),
+    ("b27b82afa5f15512f3856e549fb83d873fd0049759a4b62ce64c8d7d4dc2c678", "the worm's loader"),
+    ("9fc2570b7cef51c1b8df116d144d11ff4096357be7d2c4c6367cfc2509cf1bcc", "the worm's payload"),
+];
+/// The payload's names in this wave, and the previous one's.
+const PAYLOADS: &[&str] =
+    &["math_init.js", "Math_Symbol.js", "router_runtime.js", "setup_bun.js", "bun_environment.js"];
+pub(crate) const LOCKFILES: &[&str] =
+    &["package-lock.json", "npm-shrinkwrap.json", ".package-lock.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock"];
+static LOADER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b(setup\.mjs|setup_bun\.js)\b").unwrap());
+
+/// PolinRider's fake fonts. The real Font Awesome files are fa-brands-400, fa-regular-400 and
+/// fa-solid-900, which the campaign copies in alongside as camouflage.
+static FAKE_FONT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(^|/)fa-(brand-400\.woff|solid-[45]00\.woff2)$").unwrap());
+/// Config files build tools and editors load, where PolinRider appends code after a long run of spaces.
+static CONFIG: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(
+        r"(^|/)((next|nuxt|astro|vite|vitest|svelte|tailwind|postcss|eslint|webpack|rollup|babel|jest|prisma|tsup|remix)\.config\.(js|cjs|mjs|ts)|\.eslintrc\.(js|cjs)|api\.js)$",
+    )
+    .unwrap()
+});
+/// Code, then 150 or more spaces, then more code.
+pub(crate) static HIDDEN_AFTER_SPACES: LazyLock<regex::bytes::Regex> =
+    LazyLock::new(|| regex::bytes::Regex::new(r"\S {150,}\S").unwrap());
+
+/// Strings found only in each campaign's code: (marker, campaign).
+pub(crate) const MARKERS: &[(&str, &str)] = &[
+    ("thebeautifulmarchoftime", SHAI_HULUD),
+    ("thebeautifulsnadsoftime", SHAI_HULUD),
+    ("IfYouBlockThisAPIKeyItWillCrash", SHAI_HULUD),
+    ("global['!']", POLINRIDER),
+    ("global['_V']", POLINRIDER),
+    ("_$_1e42", POLINRIDER),
+    ("rmcej%otb%", POLINRIDER),
+    ("Cot%3t=shtP", POLINRIDER),
+];
+
+fn name_of(path: &str) -> &str {
+    path.rsplit('/').next().unwrap_or(path)
+}
+
+fn in_node_modules(path: &str) -> bool {
+    path.split('/').any(|s| s == "node_modules")
+}
+
+/// Files these checks read, including a few inside node_modules, where the rest isn't read.
+pub(crate) fn wants(path: &str) -> bool {
+    let name = name_of(path);
+    LOCKFILES.contains(&name) || PAYLOADS.contains(&name) || name == "setup.mjs" || name == "package.json"
+}
+
+/// Lockfiles and payloads can be big, and a hash needs the whole file.
+pub(crate) fn needs_whole(path: &str) -> bool {
+    let name = name_of(path);
+    LOCKFILES.contains(&name) || PAYLOADS.contains(&name) || name == "setup.mjs"
+}
+
+fn found(level: Level, path: &str, campaign: &str, title: impl Into<String>, detail: impl Into<String>) -> Finding {
+    Finding {
+        level,
+        path: path.to_string(),
+        title: title.into(),
+        detail: detail.into(),
+        branch: None,
+        campaign: Some(campaign.to_string()),
+    }
+}
+
+pub(crate) fn check(path: &str, content: Option<&[u8]>) -> Vec<Finding> {
+    let name = name_of(path);
+    let mut out = Vec::new();
+
+    // PolinRider, by name.
+    if FAKE_FONT.is_match(path) {
+        out.push(found(
+            Level::Danger,
+            path,
+            POLINRIDER,
+            "This is a fake font file that a known campaign hides code in.",
+            "Its name copies Font Awesome's, but the real files are fa-brands-400, fa-regular-400 and fa-solid-900. PolinRider runs code stored in files named like this one.",
+        ));
+    }
+    if name == "temp_auto_push.bat" {
+        out.push(found(
+            Level::Danger,
+            path,
+            POLINRIDER,
+            "This is a script a known campaign uses to push itself to repositories.",
+            "PolinRider's push script, temp_auto_push.bat.",
+        ));
+    }
+    let Some(content) = content else { return out };
+    let text = String::from_utf8_lossy(content);
+
+    // Shai-Hulud: infected versions in lockfiles and installed packages.
+    if LOCKFILES.contains(&name) {
+        let mut bad: Vec<String> = locked(name, &text)
+            .into_iter()
+            .filter(|pair| COMPROMISED.contains(pair))
+            .map(|(p, v)| format!("{p}@{v}"))
+            .collect();
+        bad.sort();
+        if !bad.is_empty() {
+            let shown = bad.iter().take(10).cloned().collect::<Vec<_>>().join(", ");
+            let more = if bad.len() > 10 { format!(", and {} more", bad.len() - 10) } else { String::new() };
+            out.push(found(
+                Level::Danger,
+                path,
+                SHAI_HULUD,
+                "This installs npm packages that a self-spreading worm infected.",
+                format!(
+                    "It pins {} infected version{}: {shown}{more}. Installing runs the worm.",
+                    bad.len(),
+                    if bad.len() == 1 { "" } else { "s" }
+                ),
+            ));
+        }
+    }
+    if name == "package.json" {
+        if let Ok(package) = serde_json::from_slice::<serde_json::Value>(content) {
+            let scripts = package.get("scripts");
+            let loader = ["preinstall", "install", "postinstall"].iter().find_map(|k| {
+                let script = scripts?.get(*k)?.as_str()?;
+                LOADER.is_match(script).then(|| format!("{k}: {script}"))
+            });
+            if let Some(script) = loader {
+                out.push(found(
+                    Level::Danger,
+                    path,
+                    SHAI_HULUD,
+                    "This runs a known worm's loader when someone installs it with npm.",
+                    format!("Shai-Hulud adds this install script: {script}."),
+                ));
+            }
+            let (pkg, version) =
+                (package.get("name").and_then(|n| n.as_str()), package.get("version").and_then(|v| v.as_str()));
+            if let (true, Some(pkg), Some(version)) = (in_node_modules(path), pkg, version) {
+                if COMPROMISED.contains(&(pkg.to_string(), version.to_string())) {
+                    out.push(found(
+                        Level::Danger,
+                        path,
+                        SHAI_HULUD,
+                        "This is an installed npm package that a self-spreading worm infected.",
+                        format!("{pkg}@{version} is a version Shai-Hulud published. Installing it already ran the worm's script."),
+                    ));
+                }
+            }
+        }
+    }
+    // Shai-Hulud's loader and payload files.
+    if PAYLOADS.contains(&name) || name == "setup.mjs" {
+        let hash: String = Sha256::digest(content).iter().map(|b| format!("{b:02x}")).collect();
+        if let Some((_, what)) = HASHES.iter().find(|(h, _)| *h == hash) {
+            out.push(found(
+                Level::Danger,
+                path,
+                SHAI_HULUD,
+                format!("This is {what}, a known malicious file."),
+                format!("Its SHA-256 matches {what} in published reports: {hash}."),
+            ));
+        } else if re_planted(path, name) {
+            // Inside node_modules a name alone isn't enough: regenerate-unicode-properties ships a real
+            // Math_Symbol.js (the Unicode category), and an infected package is caught by its version.
+            out.push(found(
+                Level::Check,
+                path,
+                SHAI_HULUD,
+                "A known worm plants a file with this name here.",
+                "Look at it before anything runs it: Shai-Hulud puts its loader (setup.mjs) and payload (math_init.js and similar) in places like this.",
+            ));
+        }
+    }
+    // Planted triggers: a VS Code task or a Claude Code hook.
+    let parent = path.rsplit('/').nth(1).unwrap_or("");
+    let task = name == "tasks.json" && parent == ".vscode";
+    if (task || (parent == ".claude" && name.starts_with("settings"))) && LOADER.is_match(&text) {
+        out.push(found(
+            Level::Danger,
+            path,
+            SHAI_HULUD,
+            "This runs a known worm's loader.",
+            "Shai-Hulud plants this file so its loader (setup.mjs) runs when the folder opens or an AI session starts.",
+        ));
+    }
+    if task && text.contains("folderOpen") && text.contains(".woff") {
+        out.push(found(
+            Level::Danger,
+            path,
+            POLINRIDER,
+            "This runs code hidden in a font file when the folder opens.",
+            "PolinRider plants a VS Code task like this one, which runs node on a fake .woff font.",
+        ));
+    }
+    if path.contains(".github/workflows/")
+        && (name.ends_with(".yml") || name.ends_with(".yaml"))
+        && (text.contains("toJSON(secrets)") || name == "shai-hulud-workflow.yml")
+    {
+        out.push(found(
+            Level::Danger,
+            path,
+            SHAI_HULUD,
+            "This GitHub workflow copies every secret in the repository.",
+            "It dumps all of them at once with toJSON(secrets), the way Shai-Hulud's planted workflow does. Normal workflows almost never need every secret.",
+        ));
+    }
+
+    // PolinRider: code hidden in a config file after a long run of spaces.
+    if CONFIG.is_match(path) && HIDDEN_AFTER_SPACES.is_match(content) {
+        out.push(found(
+            Level::Danger,
+            path,
+            POLINRIDER,
+            "Code is hidden in this config file, pushed off-screen by a long run of spaces.",
+            "PolinRider appends its code to config files that build tools load, after 150 or more spaces so an editor doesn't show it.",
+        ));
+    }
+    if name == ".gitignore" && text.lines().any(|l| l.trim() == "config.bat") {
+        out.push(found(
+            Level::Check,
+            path,
+            POLINRIDER,
+            "This ignores a file that a known campaign uses.",
+            "PolinRider adds config.bat to .gitignore so its script isn't committed by accident.",
+        ));
+    }
+    out
+}
+
+fn re_planted(path: &str, name: &str) -> bool {
+    path.split('/').any(|s| s == ".claude" || s == ".vscode") || (PAYLOADS.contains(&name) && !in_node_modules(path))
+}
+
+/// The package a yarn.lock entry is for: `foo@^1`, `"@s/p@npm:^1"`, or an alias `foo@npm:bar@^1`.
+fn spec_name(spec: &str) -> String {
+    let spec = spec.trim().trim_matches('"');
+    let (head, rest) = spec.split_once("@npm:").unwrap_or((spec, ""));
+    let head = match rest.chars().next() {
+        Some(c) if !c.is_ascii_digit() && !"^~<>=*".contains(c) => rest,
+        _ => head,
+    };
+    match head.get(1..).and_then(|h| h.find('@')) {
+        Some(i) => head[..i + 1].to_string(),
+        None => head.to_string(),
+    }
+}
+
+/// Every (package, version) a lockfile pins.
+pub(crate) fn locked(name: &str, text: &str) -> HashSet<(String, String)> {
+    let mut pairs = HashSet::new();
+    if name.ends_with(".json") {
+        // npm: v2 and v3 list "packages"; v1 nests "dependencies".
+        let Ok(data) = serde_json::from_str::<serde_json::Value>(text) else { return pairs };
+        if let Some(packages) = data.get("packages").and_then(|p| p.as_object()) {
+            for (path, entry) in packages {
+                if let (false, Some(version)) = (path.is_empty(), entry.get("version").and_then(|v| v.as_str())) {
+                    let pkg = entry
+                        .get("name")
+                        .and_then(|n| n.as_str())
+                        .unwrap_or_else(|| path.rsplit("node_modules/").next().unwrap_or(path));
+                    pairs.insert((pkg.to_string(), version.to_string()));
+                }
+            }
+        }
+        fn walk(deps: Option<&serde_json::Value>, pairs: &mut HashSet<(String, String)>, depth: usize) {
+            let Some(deps) = deps.and_then(|d| d.as_object()) else { return };
+            for (pkg, entry) in deps {
+                pairs.insert((pkg.clone(), entry.get("version").and_then(|v| v.as_str()).unwrap_or("").to_string()));
+                if depth < 64 {
+                    walk(entry.get("dependencies"), pairs, depth + 1);
+                }
+            }
+        }
+        walk(data.get("dependencies"), &mut pairs, 0);
+    } else if name == "yarn.lock" {
+        // `"foo@^1", foo@~1:` then an indented `version "1.2.3"` (v1) or `version: 1.2.3` (berry).
+        static VERSION: LazyLock<Regex> = LazyLock::new(|| Regex::new(r#"^\s+version:?\s+"?([^"\s]+)"#).unwrap());
+        let mut names: Vec<String> = Vec::new();
+        for line in text.lines() {
+            if !line.is_empty()
+                && !line.starts_with(char::is_whitespace)
+                && line.trim_end().ends_with(':')
+                && !line.starts_with('#')
+            {
+                let header = line.trim_end();
+                names = header[..header.len() - 1].split(',').map(spec_name).collect();
+            } else if let Some(m) = VERSION.captures(line) {
+                pairs.extend(names.iter().map(|n| (n.clone(), m[1].to_string())));
+            }
+        }
+    } else if name == "pnpm-lock.yaml" {
+        // `/foo/1.2.3:` (v5), `/foo@1.2.3:` (v6), `foo@1.2.3(peer@x):` (v9).
+        static ENTRY: LazyLock<Regex> = LazyLock::new(|| {
+            Regex::new(r"(?m)^\s+'?/?((?:@[^/@\s']+/)?[^/@\s:'(]+)[@/](\d+\.\d+\.\d+[^\s:'(_]*)").unwrap()
+        });
+        pairs.extend(ENTRY.captures_iter(text).map(|c| (c[1].to_string(), c[2].to_string())));
+    } else {
+        // bun.lock: `"foo": ["foo@1.2.3", …]`.
+        static ENTRY: LazyLock<Regex> =
+            LazyLock::new(|| Regex::new(r#""((?:@[^"/@]+/)?[^"/@\s]+)@(\d+\.\d+\.\d+[^"]*)""#).unwrap());
+        pairs.extend(ENTRY.captures_iter(text).map(|c| (c[1].to_string(), c[2].to_string())));
+    }
+    pairs
+}
+
+#[cfg(test)]
+pub(crate) fn compromised(pkg: &str, version: &str) -> bool {
+    COMPROMISED.contains(&(pkg.to_string(), version.to_string()))
+}
+
+#[cfg(test)]
+pub(crate) fn spec(spec: &str) -> String {
+    spec_name(spec)
+}

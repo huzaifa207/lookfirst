@@ -47,7 +47,11 @@ fn main() -> ExitCode {
                     Level::Check => "CHECK ",
                 };
                 let on = f.branch.as_ref().map(|b| format!("  (on {b})")).unwrap_or_default();
-                println!("  {level}  {}{on}\n          {}\n          {}", f.path, f.title, f.detail);
+                println!("  {level}  {}{on}\n          {}", f.path, f.title);
+                if let Some(campaign) = &f.campaign {
+                    println!("          Matches a known campaign: {campaign}");
+                }
+                println!("          {}", f.detail);
             }
             for repo in &report.repos {
                 let head = repo.head.as_deref().map(|h| format!(", checked out: {h}")).unwrap_or_default();

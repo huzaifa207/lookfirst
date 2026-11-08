@@ -78,6 +78,9 @@ function render(path, { verdict, report }) {
     const branch = document.createElement("div");
     branch.className = "branch";
     branch.textContent = `On branch ${f.branch}, not in the files as they are now`;
+    const campaign = document.createElement("div");
+    campaign.className = "campaign";
+    campaign.textContent = `Matches a known campaign: ${f.campaign}`;
     const details = document.createElement("details");
     const summary = document.createElement("summary");
     summary.textContent = "Details for a developer";
@@ -89,7 +92,7 @@ function render(path, { verdict, report }) {
     view.className = "link small";
     view.textContent = "Show this file";
     view.addEventListener("click", () => openBrowser(locationFor(f)));
-    li.append(tag, title, ...(f.branch ? [branch] : []), where, view, details);
+    li.append(tag, title, ...(f.campaign ? [campaign] : []), ...(f.branch ? [branch] : []), where, view, details);
     list.append(li);
   }
   for (const e of report.errors) {
@@ -126,7 +129,8 @@ function render(path, { verdict, report }) {
     `${path}`,
     files + (report.has_git ? ", contains a Git repository" : ""),
     "",
-    ...report.findings.map((f) => `[${f.level.toUpperCase()}] ${f.path}${f.branch ? ` (on branch ${f.branch})` : ""}\n  ${f.title}\n  ${f.detail}`),
+    ...report.findings.map((f) => `[${f.level.toUpperCase()}] ${f.path}${f.branch ? ` (on branch ${f.branch})` : ""}\n  ${f.title}` +
+      (f.campaign ? `\n  Matches a known campaign: ${f.campaign}` : "") + `\n  ${f.detail}`),
     ...report.repos.map((r) => `[GIT] ${r.path}: branches ${r.branches.join(", ") || "none"}` +
       (r.tags.length ? `; tags ${r.tags.join(", ")}` : "") + (r.note ? `\n  ${r.note}` : "")),
     ...report.errors.map((e) => `[ERROR] ${e}`),

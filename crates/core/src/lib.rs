@@ -4,6 +4,7 @@
 //!
 //! It reads archives in place. Nothing is extracted, written, run, or sent anywhere.
 
+mod campaigns;
 mod git;
 mod rules;
 
@@ -16,6 +17,8 @@ use std::rc::Rc;
 
 /// Bytes read from any one file. Hooks, settings and scripts are far smaller.
 const MAX_READ: u64 = 4 * 1024 * 1024;
+/// Lockfiles and the worm's files are read whole, so versions can be listed and hashes taken.
+const MAX_WHOLE: u64 = 64 * 1024 * 1024;
 /// An archive inside an archive is read into memory, so it gets a cap, and so does the nesting.
 const MAX_NESTED: u64 = 64 * 1024 * 1024;
 const MAX_DEPTH: usize = 3;
@@ -46,6 +49,9 @@ pub struct Finding {
     /// The branches or tags it's on, when it isn't in the files as they are now.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub branch: Option<String>,
+    /// The known campaign it matches, like "the Shai-Hulud npm worm".
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub campaign: Option<String>,
 }
 
 /// A file, folder or link inside, for browsing.
@@ -573,7 +579,8 @@ impl Scan<'_> {
         }
         let content = if rules::wants_content(&entry.path, entry.size) {
             let mut bytes = Vec::new();
-            data.take(MAX_READ).read_to_end(&mut bytes)?;
+            let cap = if campaigns::needs_whole(&entry.path) { MAX_WHOLE } else { MAX_READ };
+            data.take(cap).read_to_end(&mut bytes)?;
             Some(bytes)
         } else {
             None

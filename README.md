@@ -63,10 +63,20 @@ Files are read in memory and shown as plain text. Nothing is extracted, opened i
 | Programs named like documents (`brief.pdf.exe`), hidden reversed names, `.lnk`, `.scr`, `.hta`, `.vbs` and similar | Double-clicked | Danger |
 | Other programs and scripts (`.exe`, `.bat`, `.ps1`, `.dmg`, Mac apps), Office files with macros | Opened | Check |
 | Scripts that download something and run it, or run a font or image as code | Run | Check |
+| Code pushed off-screen by a long run of spaces | Read in an editor | Check (Danger in a build-tool config) |
 | Paths that climb out of the folder, and links that point outside it | Extracted | Danger |
 | Password-protected files | Can't be checked | Check |
 | Any of the above on another branch or tag | That branch is checked out | Same as above, marked with the branch |
 | Addresses from published reports | | Danger |
+
+### Known campaigns
+
+On top of the general checks, LookFirst carries the indicators of two campaigns, ported from the scanners written for them. A match says which campaign it is.
+
+- **The Shai-Hulud npm worm** ([shai-hulud-scan](https://github.com/huzaifa207/shai-hulud-scan)): the 2,300+ infected package versions it published, in `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml` and `bun.lock` files and in installed packages; its loader in install scripts, VS Code tasks and Claude Code hooks; its payload files, by hash, marker strings and where it plants them; and the workflow it adds to copy every repository secret.
+- **PolinRider** ([polinrider-scan](https://github.com/huzaifa207/polinrider-scan)): its fake Font Awesome files and the VS Code task that runs one, code hidden in build-tool config files after a long run of spaces, its obfuscator's marker strings, its push script, and the line it adds to `.gitignore`.
+
+The checks on your GitHub account itself, like force-pushed commits or a repository the worm made to upload your secrets, stay with those two scanners.
 
 ## If it says "Don't open this"
 

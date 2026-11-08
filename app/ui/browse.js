@@ -256,7 +256,7 @@ async function openFile(path) {
   for (const f of findingsHere().filter((f) => f.path === path)) {
     const flag = document.createElement("p");
     flag.className = `flag ${f.level}`;
-    flag.textContent = f.title;
+    flag.textContent = f.campaign ? `${f.title} Matches ${f.campaign}.` : f.title;
     head.append(flag);
   }
   viewer.replaceChildren(head);

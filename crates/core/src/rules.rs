@@ -1,7 +1,7 @@
 //! What counts as a finding. Each check names a place where code runs without anyone choosing to
 //! run it, and says when, in words a non-developer can act on.
 
-use crate::{Entry, Finding, Kind, Level};
+use crate::{campaigns, Entry, Finding, Kind, Level};
 use regex::bytes::Regex;
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -14,6 +14,7 @@ const IOCS: &[(&str, &str)] = &[
     // OpenSourceMalware, "Lazarus Group uses Git hooks to hide malware" (May 2026).
     ("precommit.vercel.app", "the Contagious Interview Git hook campaign (May 2026)"),
 ];
+const CONTAGIOUS_INTERVIEW: &str = "Contagious Interview";
 
 static DOWNLOAD: LazyLock<Regex> = LazyLock::new(|| {
     re(
@@ -137,6 +138,11 @@ pub(crate) fn wants_branch_content(path: &str) -> bool {
         || (name == "package.json" && !in_node_modules(path))
         || name == ".envrc"
         || segments(path).any(|s| s == ".githooks" || s == ".husky")
+        || campaigns::wants(path)
+        || name == ".gitignore"
+        || path.contains(".github/workflows/")
+        || name.contains(".config.")
+        || name.starts_with(".eslintrc")
 }
 
 pub(crate) fn is_archive(path: &str) -> bool {
@@ -148,7 +154,7 @@ pub(crate) fn wants_content(path: &str, size: u64) -> bool {
         return false;
     }
     if in_node_modules(path) {
-        return path.ends_with("/package.json");
+        return campaigns::wants(path); // package.json, lockfiles and the worm's files
     }
     !BINARY.contains(&ext(path).as_str())
 }
@@ -160,11 +166,12 @@ pub(crate) fn cant_open(name: &str, why: &str) -> Finding {
         title: format!("LookFirst couldn't look inside this, because {why}."),
         detail: "Don't extract or open it until someone has checked it another way.".into(),
         branch: None,
+        campaign: None,
     }
 }
 
 fn finding(level: Level, path: &str, title: impl Into<String>, detail: impl Into<String>) -> Finding {
-    Finding { level, path: path.to_string(), title: title.into(), detail: detail.into(), branch: None }
+    Finding { level, path: path.to_string(), title: title.into(), detail: detail.into(), branch: None, campaign: None }
 }
 
 /// What the code in a file does, in plain words: "downloads something, runs it in the background…".
@@ -207,28 +214,34 @@ fn clip(text: &str) -> String {
 }
 
 pub(crate) fn check(path: &str, entry: &Entry, content: Option<&[u8]>, seen: &mut HashSet<String>) -> Vec<Finding> {
-    let mut out = checks(path, entry, content, seen);
-    // One card per file: a malware match folds into the file's other finding, when it has one.
-    if let Some(i) = out.iter().position(|f| f.title.starts_with("This contains an address")) {
-        if out.len() > 1 {
-            let mut ioc = out.remove(i);
-            if out[0].level == Level::Danger {
-                // The other finding says what the file does; the match backs it up.
-                let main = &mut out[0];
-                main.detail = format!(
+    let file = path.trim_end_matches('/');
+    let (mut plain, tagged): (Vec<_>, Vec<_>) =
+        checks(path, entry, content, seen).into_iter().partition(|f| f.campaign.is_none() || f.path != file);
+    // A campaign match folds into the finding it backs up, so a file gets one card. If every other
+    // finding on the file is weaker, the match leads and they become notes under it. Separate
+    // problems in one file (two settings in a Git config) stay separate cards.
+    for mut hit in tagged {
+        if let Some(main) = plain.iter_mut().find(|p| p.path == file && p.level >= hit.level) {
+            main.campaign = main.campaign.take().or(hit.campaign);
+            main.detail = if hit.title.starts_with("This contains an address") {
+                format!(
                     "{} It also matches known malware: {}",
                     main.detail,
-                    ioc.detail.trim_start_matches("It matches ")
-                );
+                    hit.detail.trim_start_matches("It matches ")
+                )
             } else {
-                // A weaker finding becomes a note under the match.
-                let other = out.remove(0);
-                ioc.detail = format!("{} {}", ioc.detail, other.title);
-                out.insert(0, ioc);
+                format!("{} Also: {} {}", main.detail, hit.title, hit.detail)
+            };
+        } else {
+            let (weaker, rest): (Vec<_>, Vec<_>) = plain.into_iter().partition(|p| p.path == file);
+            for w in weaker {
+                hit.detail = format!("{} Also: {}", hit.detail, w.title);
             }
+            plain = rest;
+            plain.insert(0, hit);
         }
     }
-    out
+    plain
 }
 
 fn checks(path: &str, entry: &Entry, content: Option<&[u8]>, seen: &mut HashSet<String>) -> Vec<Finding> {
@@ -289,14 +302,21 @@ fn checks(path: &str, entry: &Entry, content: Option<&[u8]>, seen: &mut HashSet<
         out.extend(file_type(path, name)); // packages ship .cmd shims and the like
     }
     if let Some(content) = content.filter(|_| !PROSE.contains(&ext(name).as_str())) {
-        if let Some((ioc, source)) = IOCS.iter().find(|(ioc, _)| contains(content, ioc)) {
-            out.push(finding(
+        let markers = campaigns::MARKERS.iter().map(|(m, c)| (*m, *c, *c));
+        let iocs = IOCS.iter().map(|(ioc, source)| (*ioc, *source, CONTAGIOUS_INTERVIEW));
+        if let Some((ioc, source, campaign)) = iocs.chain(markers).find(|(ioc, _, _)| contains(content, ioc)) {
+            let mut hit = finding(
                 Level::Danger,
                 path,
                 "This contains an address or marker from known malware.",
                 format!("It matches \"{ioc}\", from {source}."),
-            ));
+            );
+            hit.campaign = Some(campaign.to_string());
+            out.push(hit);
         }
+    }
+    if git_rel(path).is_none() {
+        out.extend(campaigns::check(path, content));
     }
     let handled = out.len();
 
@@ -681,8 +701,19 @@ fn script(path: &str, name: &str, content: &[u8]) -> Option<Finding> {
         && (name.ends_with(".min.js")
             || content.len() > 200_000
             || segments(path).any(|s| s == "dist" || s == "build"));
-    if minified || !alarming(content) {
+    if minified {
         return None;
+    }
+    if !alarming(content) {
+        // Code pushed off the right edge of an editor by a long run of spaces.
+        return campaigns::HIDDEN_AFTER_SPACES.is_match(content).then(|| {
+            finding(
+                Level::Check,
+                path,
+                "Code here is pushed off-screen by a long run of spaces.",
+                "An editor shows the start of the line and hides the rest past the right edge. Look at the whole line.",
+            )
+        });
     }
     Some(finding(
         Level::Check,
