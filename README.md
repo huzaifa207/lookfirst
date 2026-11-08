@@ -39,6 +39,15 @@ When the archive holds a Git repository, the report lists its branches and tags,
 
 **Copy the report** puts the findings on your clipboard, to send to whoever checks it next.
 
+### Browse the files
+
+**Browse the files** opens a read-only view of everything inside: the folders on the left, with a dot on anything flagged, and the file you pick on the right. **Show this file** on a finding jumps straight to it. Pick a branch or tag to see the files on it instead.
+
+Files are read in memory and shown as plain text. Nothing is extracted, opened in another app, run, or rendered: HTML, scripts and links inside a file are shown as characters. Binary files aren't shown at all. The viewer also shows what code editors hide:
+
+- **Invisible and direction-reversing characters** are marked in place, like `U+202E`. They can make code read differently from how it runs ("Trojan Source").
+- **Long runs of spaces** that push code off the right edge of the screen are shortened to a visible marker, so whatever follows them is in plain view.
+
 ## What it checks
 
 | What | Runs when | Level |
@@ -83,6 +92,7 @@ It exits with `0` when nothing is found, `1` when something is, and `2` when a f
 ## Limits
 
 - **On other branches, it reads the files that run by themselves.** It compares each branch and tag with the open one, checks every differing file by name, and reads the contents of the ones that can run code (hooks, editor and assistant settings, install scripts). It doesn't read every script on every branch, and it checks branch tips, not old commits.
+- **The viewer shows the first 2 MB and 20,000 lines of a file,** and lists up to 100,000 entries.
 - **Very large repositories are compared up to 200,000 files,** and Git data in an archive up to 512 MB. The report says when it stopped short.
 - **It knows patterns, not intent.** Heavily disguised code can get past it, and a normal project can trip a Check.
 - **RAR files aren't supported yet.** It says so instead of guessing.

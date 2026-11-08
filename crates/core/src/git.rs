@@ -111,7 +111,7 @@ pub(crate) fn inspect(files: &Files, wants_content: impl Fn(&str) -> bool) -> In
         targets.push((name, oid));
     }
     for (name, oid) in &refs {
-        let label = name.strip_prefix("refs/tags/").map(|t| format!("tag {t}")).unwrap_or_else(|| short_ref(name));
+        let label = label(name);
         if Some(&label) != out.head.as_ref() {
             targets.push((label, *oid));
         }
@@ -160,6 +160,52 @@ pub(crate) fn inspect(files: &Files, wants_content: impl Fn(&str) -> bool) -> In
         ));
     }
     out
+}
+
+/// The label a ref goes by in findings and the branch picker: "main", "origin/dev", "tag v1".
+fn label(name: &str) -> String {
+    name.strip_prefix("refs/tags/").map(|t| format!("tag {t}")).unwrap_or_else(|| short_ref(name))
+}
+
+/// The commit a label points at.
+fn resolve(files: &Files, wanted: &str) -> Option<Oid> {
+    let (refs, head_ref, head_oid) = read_refs(files);
+    let head = match (&head_ref, head_oid) {
+        (Some(r), _) => Some(short_ref(r)),
+        (None, Some(oid)) => Some(format!("a detached commit ({})", &hex(&oid)[..7])),
+        _ => None,
+    };
+    if head.as_deref() == Some(wanted) {
+        return head_oid;
+    }
+    refs.iter().find(|(name, _)| label(name) == wanted).map(|(_, oid)| *oid)
+}
+
+/// Every file on a branch or tag: (path, mode), up to `limit`.
+pub(crate) fn list(files: &Files, branch: &str, limit: usize) -> Vec<(String, u32)> {
+    let mut store = Store::new(files);
+    let Some(tree) = resolve(files, branch).and_then(|oid| store.tree_of(oid)) else { return vec![] };
+    let mut found = Vec::new();
+    let mut budget = limit;
+    store.walk(tree, None, "", &mut found, &mut budget);
+    found.into_iter().map(|(path, _, mode)| (path, mode)).collect()
+}
+
+/// One file's contents on a branch or tag; a link's target for a link.
+pub(crate) fn read(files: &Files, branch: &str, path: &str) -> Option<Vec<u8>> {
+    let mut store = Store::new(files);
+    let mut oid = store.tree_of(resolve(files, branch)?)?;
+    let parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty()).collect();
+    for (i, part) in parts.iter().enumerate() {
+        let (TREE, data) = store.get(oid)? else { return None };
+        let (mode, _, next) = parse_tree(&data).into_iter().find(|(_, name, _)| name == part.as_bytes())?;
+        let last = i == parts.len() - 1;
+        if last && mode == 0o40000 || !last && mode != 0o40000 {
+            return None;
+        }
+        oid = next;
+    }
+    store.blob(oid)
 }
 
 fn short_ref(name: &str) -> String {

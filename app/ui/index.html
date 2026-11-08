@@ -6,6 +6,7 @@
   <title>LookFirst</title>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
+  <script src="browse.js" defer></script>
 </head>
 <body>
   <main>
@@ -50,8 +51,28 @@
       <ol id="findings"></ol>
       <div id="repos"></div>
       <div class="actions">
-        <button id="again" type="button">Check another file</button>
+        <button id="browse-files" type="button">Browse the files</button>
+        <button id="again" class="secondary" type="button">Check another file</button>
         <button id="copy" class="secondary" type="button">Copy the report</button>
+      </div>
+    </section>
+
+    <!-- Read-only browsing: files are read in memory and shown as text, never opened or run -->
+    <section id="browse" hidden>
+      <div class="bar">
+        <button id="back" class="secondary" type="button">← Summary</button>
+        <div class="picker">
+          <button id="source" type="button" aria-haspopup="listbox" aria-expanded="false" aria-controls="source-menu"
+            aria-label="Which files to show"><span id="source-label">Files as they are now</span></button>
+          <ul id="source-menu" role="listbox" aria-label="Which files to show" hidden></ul>
+        </div>
+        <input id="filter" type="search" placeholder="Find a file" aria-label="Find a file by name">
+      </div>
+      <div class="split">
+        <nav id="tree" aria-label="Files"></nav>
+        <article id="viewer" aria-live="polite">
+          <p class="empty">Choose a file to look at it. Files are shown as text, never opened or run.</p>
+        </article>
       </div>
     </section>
 

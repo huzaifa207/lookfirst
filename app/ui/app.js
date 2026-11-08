@@ -28,9 +28,12 @@ const VERDICTS = {
 };
 
 let lastText = "";
+/** What's open: the scanned file or folder, and its report (browse.js reads it too). */
+let current = null;
 
 function show(section) {
-  for (const id of ["home", "busy", "result"]) $(id).hidden = id !== section;
+  for (const id of ["home", "busy", "result", "browse"]) $(id).hidden = id !== section;
+  document.body.classList.toggle("wide", section === "browse");
 }
 
 function fileName(path) {
@@ -48,6 +51,7 @@ async function scan(path) {
 }
 
 function render(path, { verdict, report }) {
+  current = { path, report };
   const v = VERDICTS[verdict];
   $("verdict").className = `verdict ${verdict}`;
   $("verdict-title").textContent = v.title;
@@ -80,7 +84,12 @@ function render(path, { verdict, report }) {
     const detail = document.createElement("p");
     detail.textContent = f.detail;
     details.append(summary, detail);
-    li.append(tag, title, ...(f.branch ? [branch] : []), where, details);
+    const view = document.createElement("button");
+    view.type = "button";
+    view.className = "link small";
+    view.textContent = "Show this file";
+    view.addEventListener("click", () => openBrowser(locationFor(f)));
+    li.append(tag, title, ...(f.branch ? [branch] : []), where, view, details);
     list.append(li);
   }
   for (const e of report.errors) {
@@ -122,6 +131,7 @@ function render(path, { verdict, report }) {
       (r.tags.length ? `; tags ${r.tags.join(", ")}` : "") + (r.note ? `\n  ${r.note}` : "")),
     ...report.errors.map((e) => `[ERROR] ${e}`),
   ].join("\n");
+  $("browse-files").hidden = !report.entries?.length;
   show("result");
   window.scrollTo(0, 0);
   $("again").focus({ preventScroll: true });
@@ -139,6 +149,7 @@ async function choose(directory) {
 $("drop").addEventListener("click", () => choose(false));
 $("folder").addEventListener("click", () => choose(true));
 $("again").addEventListener("click", () => show("home"));
+$("browse-files").addEventListener("click", () => openBrowser());
 $("copy").addEventListener("click", async () => {
   await navigator.clipboard.writeText(lastText);
   $("copy").textContent = "Copied";

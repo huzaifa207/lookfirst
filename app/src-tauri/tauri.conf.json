@@ -11,9 +11,9 @@
       {
         "label": "main",
         "title": "LookFirst",
-        "width": 760,
-        "height": 640,
-        "minWidth": 520,
+        "width": 1100,
+        "height": 760,
+        "minWidth": 560,
         "minHeight": 480
       }
     ],

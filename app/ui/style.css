@@ -120,6 +120,56 @@ li.danger .branch { background: var(--danger-bg); color: var(--danger); }
 .actions button { padding: 10px 16px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .actions button.secondary { background: transparent; color: var(--accent); }
 
+.link.small { display: inline-block; margin: 2px 0 0; padding: 4px 0; font-size: 13.5px; }
+
+/* Browsing: a tree on the left, the file on the right */
+body.wide main { max-width: none; height: 100vh; padding-bottom: 8px; }
+body.wide footer { padding-top: 8px; }
+#browse { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+.bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.bar button, .bar select, .bar input { font: inherit; height: 38px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+/* The branch picker, drawn like the other fields; its menu opens below it */
+.picker { position: relative; }
+#source { position: relative; padding-right: 36px; text-align: left; min-width: 200px; cursor: pointer; }
+#source::after { content: ""; position: absolute; right: 14px; top: 50%; width: 7px; height: 7px; margin-top: -6px; border: solid var(--muted); border-width: 0 2px 2px 0; transform: rotate(45deg); transition: transform .15s; }
+#source[aria-expanded="true"]::after { transform: rotate(-135deg); margin-top: -2px; }
+#source-menu { position: absolute; z-index: 10; top: calc(100% + 6px); left: 0; min-width: 100%; max-height: 320px; overflow: auto; margin: 0; padding: 5px; list-style: none; background: var(--card); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 12px 32px rgba(0, 0, 0, .35); }
+#source-menu li { padding: 7px 10px 7px 28px; border-radius: 7px; white-space: nowrap; cursor: pointer; position: relative; }
+#source-menu li:hover, #source-menu li:focus { background: color-mix(in srgb, var(--accent) 16%, transparent); outline: none; }
+#source-menu li[aria-selected="true"] { color: var(--accent); font-weight: 600; }
+#source-menu li[aria-selected="true"]::before { content: "✓"; position: absolute; left: 10px; }
+.bar input:focus-visible, .bar input:focus-visible, .bar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.bar button.secondary { border-color: var(--accent); color: var(--accent); background: transparent; font-weight: 600; }
+.bar input { flex: 1; min-width: 140px; }
+.split { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(200px, 300px) 1fr; gap: 10px; }
+#tree, #viewer { background: var(--card); border: 1px solid var(--line); border-radius: 12px; overflow: auto; min-height: 0; }
+#tree { padding: 8px 6px; font-size: 13.5px; }
+#tree ul { list-style: none; margin: 0; padding-left: 12px; }
+#tree > ul { padding-left: 0; }
+#tree summary { cursor: pointer; padding: 3px 6px; border-radius: 6px; white-space: nowrap; }
+#tree summary:hover, #tree .file:hover { background: var(--bg); }
+#tree .file { display: block; width: 100%; text-align: left; background: none; border: 0; color: var(--text); padding: 3px 6px 3px 20px; border-radius: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#tree .file.active { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 7px; vertical-align: middle; background: var(--check); }
+.dot.danger { background: var(--danger); }
+#viewer { padding: 0; display: flex; flex-direction: column; }
+#viewer > header { display: block; padding: 12px 14px 4px; position: sticky; top: 0; z-index: 1; background: var(--card); }
+#viewer .flag { margin: 6px 14px 0; padding: 6px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 600; background: var(--check-bg); color: var(--check); }
+#viewer header .flag { margin: 6px 0 0; }
+#viewer .flag.danger { background: var(--danger-bg); color: var(--danger); }
+#viewer .empty, #tree .empty { color: var(--muted); padding: 12px 14px; margin: 0; }
+.wrap { display: flex; gap: 6px; align-items: center; font-size: 12.5px; color: var(--muted); padding: 8px 14px 4px; }
+.code { font: 12.5px/1.55 var(--mono); padding: 4px 0 14px; -webkit-user-select: text; user-select: text; }
+.line { display: grid; grid-template-columns: 52px 1fr; }
+.line.flagged { background: color-mix(in srgb, var(--check) 10%, transparent); }
+.line .n { color: var(--muted); text-align: right; padding-right: 12px; opacity: .7; -webkit-user-select: none; user-select: none; }
+.line .c { white-space: pre-wrap; word-break: break-all; padding-right: 14px; }
+#viewer.nowrap .line .c { white-space: pre; word-break: normal; }
+.hidden, .pad { font-size: 11px; padding: 0 4px; margin: 0 1px; border-radius: 4px; font-weight: 700; }
+.hidden { background: var(--danger-bg); color: var(--danger); outline: 1px solid var(--danger); }
+.pad { background: var(--check-bg); color: var(--check); }
+@media (max-width: 700px) { .split { grid-template-columns: 1fr; grid-template-rows: 35% 1fr; } }
+
 footer { margin-top: auto; padding-top: 24px; text-align: center; color: var(--muted); font-size: 12.5px; }
 
 #dropping {
