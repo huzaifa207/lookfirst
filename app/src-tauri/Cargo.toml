@@ -10,7 +10,7 @@ repository.workspace = true
 tauri-build = { version = "2.7.4", features = [] }
 
 [dependencies]
-lookfirst-core = { version = "0.1.0", path = "../../crates/core" }
+lookfirst-core = { version = "0.2.0", path = "../../crates/core" }
 serde = { version = "1.0.229", features = ["derive"] }
 tauri = { version = "2.12.5", features = [] }
 tauri-plugin-dialog = "2"

@@ -6,5 +6,5 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-lookfirst-core = { version = "0.1.0", path = "../core" }
+lookfirst-core = { version = "0.2.0", path = "../core" }
 serde_json = "1.0.154"
