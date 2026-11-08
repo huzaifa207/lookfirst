@@ -4,9 +4,9 @@
 
 Fake recruiters and "clients" send developers, and the people who hire them, archives that look like documentation or a code test. Inside is a file one of your tools runs for you: a Git hook that fires when you switch branches, a VS Code task that runs when you open the folder, an install script, a program named like a PDF. Nobody has to double-click anything.
 
-LookFirst opens the archive in place, tells you in plain words what would run and when, and gives a developer the details. It never extracts, runs, or uploads anything.
+LookFirst opens the archive in place, tells you in plain words what would run and when, and gives a developer the details. If the archive holds a Git repository, it checks every branch and tag too, without running Git, and lists the branches it found. It never extracts, runs, or uploads anything.
 
-![LookFirst warning "Don't open this" about an archive: a Git hook that runs code when someone switches branches, a program pretending to be a PDF, and an npm install script.](docs/result.png)
+![LookFirst warning "Don't open this" about an archive: a Git hook that runs code when someone switches branches, a VS Code task on the NDA branch that runs when the folder opens, and a program pretending to be a PDF. Below, the repository's branches, main and NDA, and its tag.](docs/result.png)
 
 ## Download
 
@@ -35,6 +35,8 @@ You get one of three answers:
 - **Look closer before opening:** some files can run code, which is normal in many projects but worth a developer's look.
 - **No known traps found:** nothing it knows about. That isn't a promise the files are safe.
 
+When the archive holds a Git repository, the report lists its branches and tags, and marks anything found on a branch other than the one that's open: "On branch NDA, not in the files as they are now". Checking out that branch would bring it in.
+
 **Copy the report** puts the findings on your clipboard, to send to whoever checks it next.
 
 ## What it checks
@@ -54,6 +56,7 @@ You get one of three answers:
 | Scripts that download something and run it, or run a font or image as code | Run | Check |
 | Paths that climb out of the folder, and links that point outside it | Extracted | Danger |
 | Password-protected files | Can't be checked | Check |
+| Any of the above on another branch or tag | That branch is checked out | Same as above, marked with the branch |
 | Addresses from published reports | | Danger |
 
 ## If it says "Don't open this"
@@ -79,7 +82,8 @@ It exits with `0` when nothing is found, `1` when something is, and `2` when a f
 
 ## Limits
 
-- **It reads what's checked out, not every branch.** A repository's other branches live in Git's packed data, which LookFirst doesn't unpack. If you must look at one, check it out with hooks turned off (`git -c core.hooksPath=/dev/null checkout BRANCH`) and scan the folder again.
+- **On other branches, it reads the files that run by themselves.** It compares each branch and tag with the open one, checks every differing file by name, and reads the contents of the ones that can run code (hooks, editor and assistant settings, install scripts). It doesn't read every script on every branch, and it checks branch tips, not old commits.
+- **Very large repositories are compared up to 200,000 files,** and Git data in an archive up to 512 MB. The report says when it stopped short.
 - **It knows patterns, not intent.** Heavily disguised code can get past it, and a normal project can trip a Check.
 - **RAR files aren't supported yet.** It says so instead of guessing.
 - **No guarantees.** "No known traps found" means nothing it knows about, not that the files are safe.

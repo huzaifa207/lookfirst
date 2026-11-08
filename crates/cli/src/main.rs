@@ -46,7 +46,22 @@ fn main() -> ExitCode {
                     Level::Danger => "DANGER",
                     Level::Check => "CHECK ",
                 };
-                println!("  {level}  {}\n          {}\n          {}", f.path, f.title, f.detail);
+                let on = f.branch.as_ref().map(|b| format!("  (on {b})")).unwrap_or_default();
+                println!("  {level}  {}{on}\n          {}\n          {}", f.path, f.title, f.detail);
+            }
+            for repo in &report.repos {
+                let head = repo.head.as_deref().map(|h| format!(", checked out: {h}")).unwrap_or_default();
+                println!("  GIT     {}{head}", repo.path);
+                println!(
+                    "          branches: {}",
+                    if repo.branches.is_empty() { "none".into() } else { repo.branches.join(", ") }
+                );
+                if !repo.tags.is_empty() {
+                    println!("          tags: {}", repo.tags.join(", "));
+                }
+                if let Some(note) = &repo.note {
+                    println!("          {note}");
+                }
             }
             for e in &report.errors {
                 println!("  ERROR   {e}");

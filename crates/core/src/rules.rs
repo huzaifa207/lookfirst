@@ -117,8 +117,26 @@ fn in_node_modules(path: &str) -> bool {
     segments(path).any(|s| s == "node_modules")
 }
 
-pub(crate) fn skip_dir(path: &str) -> bool {
-    git_rel(path).is_some_and(|rel| rel == "objects" || rel.starts_with("objects/"))
+/// Splits a path inside a .git folder into the folder and the rest: ("pack/.git", "HEAD").
+pub(crate) fn split_git(path: &str) -> Option<(&str, &str)> {
+    if let Some(rest) = path.strip_prefix(".git/") {
+        return Some((".git", rest));
+    }
+    path.find("/.git/").map(|i| (&path[..i + 5], &path[i + 6..]))
+}
+
+/// Files on other branches whose contents the checks read. Everything else is checked by name.
+pub(crate) fn wants_branch_content(path: &str) -> bool {
+    let name = path.rsplit('/').next().unwrap_or(path);
+    let parent = path.rsplit('/').nth(1).unwrap_or("");
+    (name == "tasks.json" && parent == ".vscode")
+        || name.ends_with(".code-workspace")
+        || (parent == ".claude" && name.starts_with("settings"))
+        || name == ".mcp.json"
+        || name == "mcp.json"
+        || (name == "package.json" && !in_node_modules(path))
+        || name == ".envrc"
+        || segments(path).any(|s| s == ".githooks" || s == ".husky")
 }
 
 pub(crate) fn is_archive(path: &str) -> bool {
@@ -141,11 +159,12 @@ pub(crate) fn cant_open(name: &str, why: &str) -> Finding {
         path: name.to_string(),
         title: format!("LookFirst couldn't look inside this, because {why}."),
         detail: "Don't extract or open it until someone has checked it another way.".into(),
+        branch: None,
     }
 }
 
 fn finding(level: Level, path: &str, title: impl Into<String>, detail: impl Into<String>) -> Finding {
-    Finding { level, path: path.to_string(), title: title.into(), detail: detail.into() }
+    Finding { level, path: path.to_string(), title: title.into(), detail: detail.into(), branch: None }
 }
 
 /// What the code in a file does, in plain words: "downloads something, runs it in the background…".
@@ -302,8 +321,7 @@ fn checks(path: &str, entry: &Entry, content: Option<&[u8]>, seen: &mut HashSet<
         ));
     } else if (name == "tasks.json" && parent == ".vscode") || name.ends_with(".code-workspace") {
         if FOLDER_OPEN.is_match(content) {
-            let commands: Vec<String> =
-                COMMAND.captures_iter(content).take(3).map(|c| clip(&String::from_utf8_lossy(&c[1]))).collect();
+            let commands = folder_open_commands(content);
             out.push(finding(
                 Level::Danger,
                 path,
@@ -332,6 +350,34 @@ fn checks(path: &str, entry: &Entry, content: Option<&[u8]>, seen: &mut HashSet<
         out.extend(script(path, name, content));
     }
     out
+}
+
+/// The commands of the tasks set to run on folder open, so a payload hidden among dozens of
+/// normal tasks is the one shown. Falls back to the first few commands when the file has the
+/// comments VS Code allows, which strict JSON doesn't.
+fn folder_open_commands(content: &[u8]) -> Vec<String> {
+    let parsed: Option<serde_json::Value> = serde_json::from_slice(content).ok();
+    let tasks =
+        parsed.as_ref().and_then(|v| v.pointer("/tasks/tasks").or_else(|| v.get("tasks"))).and_then(|t| t.as_array());
+    if let Some(tasks) = tasks {
+        let commands: Vec<String> = tasks
+            .iter()
+            .filter(|task| task.pointer("/runOptions/runOn").and_then(|r| r.as_str()) == Some("folderOpen"))
+            .filter_map(|task| {
+                let command = task.get("command")?.as_str()?;
+                let args: Vec<&str> = task
+                    .get("args")
+                    .and_then(|a| a.as_array())
+                    .map(|a| a.iter().filter_map(|x| x.as_str()).collect())
+                    .unwrap_or_default();
+                Some(clip(&format!("{command} {}", args.join(" "))))
+            })
+            .collect();
+        if !commands.is_empty() {
+            return commands;
+        }
+    }
+    COMMAND.captures_iter(content).take(3).map(|c| clip(&String::from_utf8_lossy(&c[1]))).collect()
 }
 
 fn contains(haystack: &[u8], needle: &str) -> bool {

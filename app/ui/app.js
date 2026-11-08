@@ -43,7 +43,7 @@ async function scan(path) {
   try {
     render(path, await invoke("scan", { path }));
   } catch (e) {
-    render(path, { verdict: "unreadable", report: { files: 0, findings: [], errors: [String(e)], has_git: false } });
+    render(path, { verdict: "unreadable", report: { files: 0, findings: [], repos: [], errors: [String(e)], has_git: false } });
   }
 }
 
@@ -71,13 +71,16 @@ function render(path, { verdict, report }) {
     const where = document.createElement("div");
     where.className = "path";
     where.textContent = f.path;
+    const branch = document.createElement("div");
+    branch.className = "branch";
+    branch.textContent = `On branch ${f.branch}, not in the files as they are now`;
     const details = document.createElement("details");
     const summary = document.createElement("summary");
     summary.textContent = "Details for a developer";
     const detail = document.createElement("p");
     detail.textContent = f.detail;
     details.append(summary, detail);
-    li.append(tag, title, where, details);
+    li.append(tag, title, ...(f.branch ? [branch] : []), where, details);
     list.append(li);
   }
   for (const e of report.errors) {
@@ -86,12 +89,37 @@ function render(path, { verdict, report }) {
     list.append(li);
   }
 
+  const repos = $("repos");
+  repos.replaceChildren();
+  for (const r of report.repos) {
+    const box = document.createElement("div");
+    box.className = "repo";
+    const head = document.createElement("p");
+    const count = r.branches.length;
+    head.textContent = `Git repository in ${r.path.replace(/\/?\.git$/, "") || "the top folder"}: ` +
+      `${count} branch${count === 1 ? "" : "es"}${r.tags.length ? ` and ${r.tags.length} tag${r.tags.length === 1 ? "" : "s"}` : ""}, ${r.note ? "some couldn't be checked" : "all checked"}`;
+    const names = document.createElement("p");
+    names.className = "names";
+    names.textContent = r.branches.map((b) => (b === r.head ? `${b} (open now)` : b)).join(" · ") +
+      (r.tags.length ? `  ·  tags: ${r.tags.join(", ")}` : "");
+    box.append(head, names);
+    if (r.note) {
+      const note = document.createElement("p");
+      note.className = "note";
+      note.textContent = r.note;
+      box.append(note);
+    }
+    repos.append(box);
+  }
+
   lastText = [
     `LookFirst report: ${v.title}`,
     `${path}`,
     files + (report.has_git ? ", contains a Git repository" : ""),
     "",
-    ...report.findings.map((f) => `[${f.level.toUpperCase()}] ${f.path}\n  ${f.title}\n  ${f.detail}`),
+    ...report.findings.map((f) => `[${f.level.toUpperCase()}] ${f.path}${f.branch ? ` (on branch ${f.branch})` : ""}\n  ${f.title}\n  ${f.detail}`),
+    ...report.repos.map((r) => `[GIT] ${r.path}: branches ${r.branches.join(", ") || "none"}` +
+      (r.tags.length ? `; tags ${r.tags.join(", ")}` : "") + (r.note ? `\n  ${r.note}` : "")),
     ...report.errors.map((e) => `[ERROR] ${e}`),
   ].join("\n");
   show("result");

@@ -108,6 +108,14 @@ details { margin-top: 6px; font-size: 13.5px; color: var(--muted); }
 details summary { cursor: pointer; color: var(--accent); }
 details p { margin: 6px 0 0; -webkit-user-select: text; user-select: text; }
 
+.branch { display: inline-block; margin: 0 0 6px; padding: 2px 8px; border-radius: 6px; font-size: 12.5px; font-weight: 600; background: var(--check-bg); color: var(--check); }
+li.danger .branch { background: var(--danger-bg); color: var(--danger); }
+#repos { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.repo { border: 1px dashed var(--line); border-radius: 12px; padding: 10px 14px; font-size: 13.5px; }
+.repo p { margin: 0; }
+.repo .names { color: var(--muted); font: 12.5px/1.5 var(--mono); margin-top: 4px; word-break: break-word; -webkit-user-select: text; user-select: text; }
+.repo .note { color: var(--check); margin-top: 4px; }
+
 .actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; }
 .actions button { padding: 10px 16px; border-radius: 10px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 600; }
 .actions button.secondary { background: transparent; color: var(--accent); }

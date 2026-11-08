@@ -4,12 +4,15 @@
 //!
 //! It reads archives in place. Nothing is extracted, written, run, or sent anywhere.
 
+mod git;
 mod rules;
 
 use serde::Serialize;
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::{self, BufRead, BufReader, Cursor, Read, Seek};
 use std::path::Path;
+use std::rc::Rc;
 
 /// Bytes read from any one file. Hooks, settings and scripts are far smaller.
 const MAX_READ: u64 = 4 * 1024 * 1024;
@@ -36,6 +39,24 @@ pub struct Finding {
     pub title: String,
     /// The technical detail, for whoever checks it next.
     pub detail: String,
+    /// The branches or tags it's on, when it isn't in the files as they are now.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+}
+
+/// A Git repository found inside, and what's on its branches.
+#[derive(Serialize, Clone, Debug)]
+pub struct Repo {
+    /// Its .git folder: "pack/.git".
+    pub path: String,
+    /// The checked-out branch, or a note that it's a detached commit.
+    pub head: Option<String>,
+    /// Local branches, then remote-tracking ones ("origin/dev").
+    pub branches: Vec<String>,
+    pub tags: Vec<String>,
+    /// Why some branches couldn't be checked.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub note: Option<String>,
 }
 
 #[derive(Serialize, Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,6 +76,8 @@ pub struct Report {
     pub files: usize,
     /// It contains a Git repository's own folder, which is where hooks and settings live.
     pub has_git: bool,
+    /// Every Git repository inside, with its branches and tags.
+    pub repos: Vec<Repo>,
     pub findings: Vec<Finding>,
     pub errors: Vec<String>,
 }
@@ -90,13 +113,15 @@ pub(crate) enum Kind {
 /// Scans an archive (zip, tar, tar.gz/.bz2/.xz, 7z), a folder, or a single file.
 pub fn scan_path(path: &Path) -> Report {
     let mut report = Report { source: path.display().to_string(), ..Default::default() };
-    let mut scan = Scan { report: &mut report, prefix: String::new(), depth: 0, seen: Default::default() };
+    let mut scan =
+        Scan { report: &mut report, prefix: String::new(), depth: 0, seen: Default::default(), repos: BTreeMap::new() };
     let result = if path.is_dir() {
         scan.folder(path, path)
     } else {
         let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         File::open(path).and_then(|f| scan.reader(BufReader::new(f), &name))
     };
+    scan.branches();
     if let Err(e) = result {
         report.errors.push(format!("{}: {e}", path.display()));
     }
@@ -111,6 +136,8 @@ struct Scan<'a> {
     depth: usize,
     /// Findings reported once per thing, like a macOS app bundle with many files in it.
     seen: std::collections::HashSet<String>,
+    /// Each repository's Git data, keyed by its .git folder, read once the walk is done.
+    repos: BTreeMap<String, git::Files>,
 }
 
 enum Format {
@@ -335,9 +362,13 @@ impl Scan<'_> {
             match entry.kind {
                 Kind::Dir => {
                     self.visit(&entry, None);
-                    if !rules::skip_dir(&entry.path) {
-                        self.folder(root, &path)?;
-                    }
+                    self.folder(root, &path)?;
+                }
+                Kind::File if rules::split_git(&entry.path).is_some_and(|(_, rel)| git::wants(rel)) => {
+                    // On disk, Git's data is read later and one repository at a time.
+                    let (dir, rel) = rules::split_git(&entry.path).unwrap();
+                    self.repos.entry(dir.to_string()).or_default().add(rel, git::Source::Disk(path.clone()));
+                    self.visit(&entry, None);
                 }
                 Kind::File => self.read_and_visit(&entry, &mut File::open(&path)?)?,
                 Kind::Link(_) => self.visit(&entry, None),
@@ -349,6 +380,20 @@ impl Scan<'_> {
     /// Reads what the checks need (often nothing), then checks the entry.
     fn read_and_visit(&mut self, entry: &Entry, data: &mut dyn Read) -> io::Result<()> {
         if entry.kind != Kind::File {
+            self.visit(entry, None);
+            return Ok(());
+        }
+        let clean = entry.path.replace('\\', "/");
+        if let Some((dir, rel)) = rules::split_git(clean.trim_start_matches("./")).filter(|(_, rel)| git::wants(rel)) {
+            // Git's data: kept for reading the branches once the whole archive has been seen.
+            let files = self.repos.entry(dir.to_string()).or_default();
+            if files.room_for(entry.size) {
+                let mut bytes = Vec::new();
+                data.take(git::MAX_REPO_BYTES).read_to_end(&mut bytes)?;
+                files.add(rel, git::Source::Mem(Rc::new(bytes)));
+            } else {
+                files.too_big = true;
+            }
             self.visit(entry, None);
             return Ok(());
         }
@@ -378,7 +423,10 @@ impl Scan<'_> {
         let outer = std::mem::replace(&mut self.prefix, inside);
         self.depth += 1;
         let short = name.rsplit('/').next().unwrap_or(name).to_string();
+        let outer_repos = std::mem::take(&mut self.repos);
         let result = self.reader(BufReader::new(Cursor::new(bytes)), &short);
+        self.branches();
+        self.repos = outer_repos;
         self.depth -= 1;
         self.prefix = outer;
         if let Err(e) = result {
@@ -399,6 +447,58 @@ impl Scan<'_> {
         }
         for finding in rules::check(path, entry, content, &mut self.seen) {
             self.add(finding);
+        }
+    }
+
+    /// Lists each repository's branches and tags, and checks the files on them that differ from
+    /// the checked-out commit.
+    fn branches(&mut self) {
+        for (dir, files) in std::mem::take(&mut self.repos) {
+            let mut repo =
+                Repo { path: format!("{}{dir}", self.prefix), head: None, branches: vec![], tags: vec![], note: None };
+            if files.too_big {
+                repo.note = Some("Its Git data is too big to read here, so its branches weren't checked.".into());
+                self.report.repos.push(repo);
+                continue;
+            }
+            let found = git::inspect(&files, rules::wants_branch_content);
+            repo.head = found.head;
+            repo.branches = found.branches;
+            repo.tags = found.tags;
+            repo.note = found.note;
+            self.report.repos.push(repo);
+
+            let root = dir.strip_suffix(".git").unwrap_or("");
+            for file in found.files {
+                let path = format!("{root}{}", file.path);
+                let link = file.mode == 0o120000;
+                let entry = Entry {
+                    path: path.clone(),
+                    kind: if link {
+                        Kind::Link(String::from_utf8_lossy(file.content.as_deref().unwrap_or_default()).into_owned())
+                    } else {
+                        Kind::File
+                    },
+                    mode: Some(file.mode),
+                    size: file.content.as_ref().map_or(0, |c| c.len() as u64),
+                    encrypted: false,
+                };
+                let content = if link { None } else { file.content.as_deref() };
+                for mut finding in rules::check(&path, &entry, content, &mut self.seen) {
+                    let shown = format!("{}{}", self.prefix, finding.path);
+                    // Already reported from the files as they are now.
+                    if self
+                        .report
+                        .findings
+                        .iter()
+                        .any(|f| f.branch.is_none() && f.path == shown && f.title == finding.title)
+                    {
+                        continue;
+                    }
+                    finding.branch = Some(file.refs.join(", "));
+                    self.add(finding);
+                }
+            }
         }
     }
 
