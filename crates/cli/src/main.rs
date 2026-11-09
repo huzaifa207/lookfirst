@@ -1,35 +1,41 @@
 //! lookfirst: check an archive or folder for code that runs by itself, before you open it.
 
+use clap::Parser;
 use lookfirst_core::{list_info, scan_path, update_list, Level, Verdict};
-use std::path::Path;
+use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "\
-Usage: lookfirst [--json] PATH...
-       lookfirst --update
-
-Checks archives (zip, tar, tar.gz/.bz2/.xz, 7z), folders, or single files for code that runs
-without anyone choosing to run it: Git hooks and settings, VS Code tasks, Claude Code hooks, npm
-install scripts, programs dressed up as documents, and paths that escape the folder.
-Nothing is extracted, run, or sent anywhere (--update only downloads).
-
-  --json     print the reports as JSON
-  --update   download the latest list of known threats (the only time LookFirst goes online)
-
-Exit status: 0 nothing found, 1 something found, 2 something couldn't be read.";
+/// Checks archives (zip, tar, tar.gz/.bz2/.xz, 7z), folders, or single files for code that runs
+/// without anyone choosing to run it: Git hooks and settings, VS Code tasks, Claude Code hooks, npm
+/// install scripts, programs dressed up as documents, and paths that escape the folder.
+/// Nothing is extracted, run, or sent anywhere (--update only downloads).
+///
+/// Exit status: 0 nothing found, 1 something found, 2 something couldn't be read.
+#[derive(Parser)]
+#[command(name = "lookfirst", disable_version_flag = true, arg_required_else_help = true)]
+struct Cli {
+    /// Archives, folders or files to check
+    #[arg(required_unless_present_any = ["update", "version"])]
+    paths: Vec<PathBuf>,
+    /// Print the reports as JSON
+    #[arg(long)]
+    json: bool,
+    /// Download the latest list of known threats (the only time LookFirst goes online)
+    #[arg(long, conflicts_with = "paths")]
+    update: bool,
+    /// Print the version
+    #[arg(short = 'V', long)]
+    version: bool,
+}
 
 fn main() -> ExitCode {
-    let args: Vec<String> = std::env::args().skip(1).collect();
-    if args.is_empty() || args.iter().any(|a| a == "-h" || a == "--help") {
-        println!("{USAGE}");
-        return if args.is_empty() { ExitCode::from(2) } else { ExitCode::SUCCESS };
-    }
-    if args.iter().any(|a| a == "-V" || a == "--version") {
+    let cli = Cli::parse();
+    if cli.version {
         let list = list_info();
         println!("lookfirst {} (threat list {}, {})", env!("CARGO_PKG_VERSION"), list.version, list.updated);
         return ExitCode::SUCCESS;
     }
-    if args.iter().any(|a| a == "--update") {
+    if cli.update {
         return match update_list() {
             Ok(list) if list.changed => {
                 println!("Updated the list of known threats to version {} ({}).", list.version, list.updated);
@@ -45,8 +51,8 @@ fn main() -> ExitCode {
             }
         };
     }
-    let json = args.iter().any(|a| a == "--json");
-    let reports: Vec<_> = args.iter().filter(|a| *a != "--json").map(|p| scan_path(Path::new(p))).collect();
+    let json = cli.json;
+    let reports: Vec<_> = cli.paths.iter().map(|p| scan_path(p)).collect();
 
     if json {
         let out: Vec<_> = reports.iter().map(|r| serde_json::json!({ "verdict": r.verdict(), "report": r })).collect();

@@ -8,7 +8,7 @@ Ideas for LookFirst, roughly by value. Nothing here is promised or scheduled. To
 - `rules/` has one file per ecosystem. A new ecosystem gets its own file.
 - The threat list is `crates/core/data/indicators.json`, signed, and embedded as the default. `lookfirst --update` and the app button fetch a newer signed copy, so a new indicator needs no release.
 - The app isn't code-signed yet, so first launch shows a warning on Mac and Windows.
-- The CLI parses its flags by hand. Move to a parser crate if the options grow.
+- The CLI uses `clap`, so new options (a `--format`, an ignore file) are one field each.
 
 ## Ideas
 
