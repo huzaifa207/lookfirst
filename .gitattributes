@@ -1,0 +1,2 @@
+# The threat list is signed byte for byte, so Git must never change its line endings (Windows checkouts do).
+crates/core/data/* -text
