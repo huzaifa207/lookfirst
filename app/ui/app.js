@@ -169,3 +169,25 @@ getCurrentWebview().onDragDropEvent(({ payload }) => {
     if (payload.type === "drop" && payload.paths.length) scan(payload.paths[0]);
   }
 });
+
+// The list of known threats: shown in the footer, refreshed only when the user asks.
+function showList(list) {
+  $("list-info").textContent = `Known-threat list: version ${list.version}, ${list.updated}.`;
+}
+invoke("threat_list").then(showList);
+$("update-list").addEventListener("click", async () => {
+  const button = $("update-list");
+  button.disabled = true;
+  button.textContent = "Downloading…";
+  try {
+    const list = await invoke("update_threat_list");
+    showList(list);
+    button.textContent = list.changed ? "Updated" : "Already up to date";
+  } catch (e) {
+    button.textContent = `Couldn't update: ${e}`;
+  }
+  setTimeout(() => {
+    button.disabled = false;
+    button.textContent = "Update the list of known threats";
+  }, 4000);
+});

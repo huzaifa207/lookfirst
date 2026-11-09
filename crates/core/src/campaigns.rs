@@ -2,6 +2,7 @@
 //! (github.com/huzaifa207/shai-hulud-scan and github.com/huzaifa207/polinrider-scan), with the
 //! same sources and the same false-positive lessons. A match names the campaign.
 
+use crate::indicators;
 use crate::{Finding, Level};
 use regex::Regex;
 use sha2::{Digest, Sha256};
@@ -11,21 +12,6 @@ use std::sync::LazyLock;
 pub(crate) const SHAI_HULUD: &str = "Shai-Hulud npm worm";
 pub(crate) const POLINRIDER: &str = "PolinRider";
 
-/// npm versions the Shai-Hulud "ChainDrop" wave published (Datadog and Unit 42, 2026-11-02).
-static COMPROMISED: LazyLock<HashSet<(String, String)>> = LazyLock::new(|| {
-    include_str!("../data/shai-hulud-packages.txt")
-        .lines()
-        .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
-        .filter_map(|l| l.split_once(' ').map(|(n, v)| (n.to_string(), v.trim().to_string())))
-        .collect()
-});
-/// SHA-256 of the worm's files, from Unit 42 and the CSA advisory.
-const HASHES: &[(&str, &str)] = &[
-    ("54dc7ea54a1317cca0e890a2770630cf7fa6c97813e0cb9d2caa93012b350668", "the worm's loader"),
-    ("fd3ca4007b225fdf8de7af4345a19179d5efa8c4bb9205f88cda806e5684b1eb", "the worm's loader"),
-    ("b27b82afa5f15512f3856e549fb83d873fd0049759a4b62ce64c8d7d4dc2c678", "the worm's loader"),
-    ("9fc2570b7cef51c1b8df116d144d11ff4096357be7d2c4c6367cfc2509cf1bcc", "the worm's payload"),
-];
 /// The payload's names in this wave, and the previous one's.
 const PAYLOADS: &[&str] =
     &["math_init.js", "Math_Symbol.js", "router_runtime.js", "setup_bun.js", "bun_environment.js"];
@@ -47,18 +33,6 @@ static CONFIG: LazyLock<Regex> = LazyLock::new(|| {
 /// Code, then 150 or more spaces, then more code.
 pub(crate) static HIDDEN_AFTER_SPACES: LazyLock<regex::bytes::Regex> =
     LazyLock::new(|| regex::bytes::Regex::new(r"\S {150,}\S").unwrap());
-
-/// Strings found only in each campaign's code: (marker, campaign).
-pub(crate) const MARKERS: &[(&str, &str)] = &[
-    ("thebeautifulmarchoftime", SHAI_HULUD),
-    ("thebeautifulsnadsoftime", SHAI_HULUD),
-    ("IfYouBlockThisAPIKeyItWillCrash", SHAI_HULUD),
-    ("global['!']", POLINRIDER),
-    ("global['_V']", POLINRIDER),
-    ("_$_1e42", POLINRIDER),
-    ("rmcej%otb%", POLINRIDER),
-    ("Cot%3t=shtP", POLINRIDER),
-];
 
 fn name_of(path: &str) -> &str {
     path.rsplit('/').next().unwrap_or(path)
@@ -115,13 +89,14 @@ pub(crate) fn check(path: &str, content: Option<&[u8]>) -> Vec<Finding> {
         ));
     }
     let Some(content) = content else { return out };
+    let list = indicators::current();
     let text = String::from_utf8_lossy(content);
 
     // Shai-Hulud: infected versions in lockfiles and installed packages.
     if LOCKFILES.contains(&name) {
         let mut bad: Vec<String> = locked(name, &text)
             .into_iter()
-            .filter(|pair| COMPROMISED.contains(pair))
+            .filter(|pair| list.packages.contains(pair))
             .map(|(p, v)| format!("{p}@{v}"))
             .collect();
         bad.sort();
@@ -160,7 +135,7 @@ pub(crate) fn check(path: &str, content: Option<&[u8]>) -> Vec<Finding> {
             let (pkg, version) =
                 (package.get("name").and_then(|n| n.as_str()), package.get("version").and_then(|v| v.as_str()));
             if let (true, Some(pkg), Some(version)) = (in_node_modules(path), pkg, version) {
-                if COMPROMISED.contains(&(pkg.to_string(), version.to_string())) {
+                if list.packages.contains(&(pkg.to_string(), version.to_string())) {
                     out.push(found(
                         Level::Danger,
                         path,
@@ -175,7 +150,8 @@ pub(crate) fn check(path: &str, content: Option<&[u8]>) -> Vec<Finding> {
     // Shai-Hulud's loader and payload files.
     if PAYLOADS.contains(&name) || name == "setup.mjs" {
         let hash: String = Sha256::digest(content).iter().map(|b| format!("{b:02x}")).collect();
-        if let Some((_, what)) = HASHES.iter().find(|(h, _)| *h == hash) {
+        if let Some(known) = list.hashes.iter().find(|h| h.sha256 == hash) {
+            let what = &known.what;
             out.push(found(
                 Level::Danger,
                 path,
@@ -329,7 +305,7 @@ pub(crate) fn locked(name: &str, text: &str) -> HashSet<(String, String)> {
 
 #[cfg(test)]
 pub(crate) fn compromised(pkg: &str, version: &str) -> bool {
-    COMPROMISED.contains(&(pkg.to_string(), version.to_string()))
+    indicators::current().packages.contains(&(pkg.to_string(), version.to_string()))
 }
 
 #[cfg(test)]

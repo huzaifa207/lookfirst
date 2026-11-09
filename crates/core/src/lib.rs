@@ -6,7 +6,10 @@
 
 mod campaigns;
 mod git;
+mod indicators;
 mod rules;
+
+pub use indicators::{list_info, update_list, ListInfo};
 
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;

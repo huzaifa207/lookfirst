@@ -19,16 +19,6 @@ use paths::*;
 pub(crate) use paths::{in_git_dir, is_archive, split_git, wants_branch_content, wants_content};
 use text::*;
 
-/// Addresses and markers from published reports. Each needs a source.
-const IOCS: &[(&str, &str)] = &[
-    // The fake recruiter's post-checkout hook this project started from (November 2026).
-    ("zenithflow-ext123456.vercel.app", "a fake recruiter's Git hook (November 2026)"),
-    (".git-checker", "a fake recruiter's Git hook (November 2026)"),
-    // OpenSourceMalware, "Lazarus Group uses Git hooks to hide malware" (May 2026).
-    ("precommit.vercel.app", "the Contagious Interview Git hook campaign (May 2026)"),
-];
-const CONTAGIOUS_INTERVIEW: &str = "Contagious Interview";
-
 /// Docs and data quote commands and addresses (a README's `curl … | sh`, a write-up naming a
 /// malware URL) without running them.
 const PROSE: &[&str] =
@@ -138,8 +128,9 @@ fn checks(path: &str, entry: &Entry, content: Option<&[u8]>, seen: &mut HashSet<
         out.extend(filetype::file_type(path, name)); // packages ship .cmd shims and the like
     }
     if let Some(content) = content.filter(|_| !PROSE.contains(&ext(name).as_str())) {
-        let markers = campaigns::MARKERS.iter().map(|(m, c)| (*m, *c, *c));
-        let iocs = IOCS.iter().map(|(ioc, source)| (*ioc, *source, CONTAGIOUS_INTERVIEW));
+        let list = crate::indicators::current();
+        let markers = list.markers.iter().map(|m| (&m.text, &m.campaign, &m.campaign));
+        let iocs = list.iocs.iter().map(|i| (&i.text, &i.source, &i.campaign));
         if let Some((ioc, source, campaign)) = iocs.chain(markers).find(|(ioc, _, _)| contains(content, ioc)) {
             let mut hit = finding(
                 Level::Danger,
@@ -147,7 +138,7 @@ fn checks(path: &str, entry: &Entry, content: Option<&[u8]>, seen: &mut HashSet<
                 "This contains an address or marker from known malware.",
                 format!("It matches \"{ioc}\", from {source}."),
             );
-            hit.campaign = Some(campaign.to_string());
+            hit.campaign = Some(campaign.clone());
             out.push(hit);
         }
     }

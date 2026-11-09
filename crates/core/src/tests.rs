@@ -563,6 +563,10 @@ fn lockfiles_of_every_kind() {
     for (p, v) in [("keyv", "6.0.0"), ("@cacheable/node-cache", "3.1.2"), ("ecto", "5.0.1")] {
         assert!(campaigns::compromised(p, v), "{p}@{v}");
     }
+    // The November 2025 wave (Datadog's consolidated list), a separate set from ChainDrop's.
+    assert!(
+        campaigns::compromised("02-echo", "0.0.7") && campaigns::compromised("@accordproject/concerto-types", "3.24.1")
+    );
     assert_eq!(campaigns::spec("\"@s/p@npm:^1.0.0\""), "@s/p");
     assert_eq!(campaigns::spec("foo@npm:@s/bar@^2"), "@s/bar");
     assert_eq!(campaigns::spec(" foo@~1.2"), "foo");

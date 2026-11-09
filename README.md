@@ -4,7 +4,7 @@
 
 Fake recruiters and "clients" send developers, and the people who hire them, archives that look like documentation or a code test. Inside is a file one of your tools runs for you: a Git hook that fires when you switch branches, a VS Code task that runs when you open the folder, an install script, a program named like a PDF. Nobody has to double-click anything.
 
-LookFirst opens the archive in place, tells you in plain words what would run and when, and gives a developer the details. If the archive holds a Git repository, it checks every branch and tag too, without running Git, and lists the branches it found. It never extracts, runs, or uploads anything.
+LookFirst opens the archive in place, tells you in plain words what would run and when, and gives a developer the details. If the archive holds a Git repository, it checks every branch and tag too, without running Git, and lists the branches it found. It never extracts, runs, or uploads anything. It works offline; the one thing that goes online is the **Update the list of known threats** button (or `lookfirst --update`), which only downloads, and only when you ask.
 
 ![LookFirst warning "Don't open this" about an archive: a Git hook that runs code when someone switches branches, a VS Code task on the NDA branch that runs when the folder opens, and a program pretending to be a PDF. Below, the repository's branches, main and NDA, and its tag.](docs/result.png)
 
@@ -95,7 +95,10 @@ lookfirst ~/Downloads/pack.zip
 
 ```
 lookfirst [--json] PATH...
+lookfirst --update
 ```
+
+`--update` downloads the newest list of known threats (infected package versions, file hashes, campaign strings). The list is signed by the maintainer; anything unsigned or older is thrown away, and the copy built into the program is used if the download fails. Nothing about you or your files is sent.
 
 It exits with `0` when nothing is found, `1` when something is, and `2` when a file couldn't be read, so it can gate a CI job or a script that accepts uploads.
 
@@ -117,7 +120,7 @@ cargo install tauri-cli --version "^2" --locked
 cd app && cargo tauri dev          # the desktop app
 ```
 
-The scanner is `crates/core`, the CLI `crates/cli`, and the app `app/` (Tauri, with a plain HTML window and no network access).
+The scanner is `crates/core`, the CLI `crates/cli`, and the app `app/` (Tauri, with a plain HTML window). Only the core's `update_list` touches the network.
 
 ## Sources
 

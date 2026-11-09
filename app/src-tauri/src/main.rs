@@ -1,7 +1,10 @@
 // Keeps a console window from opening next to the app on Windows.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use lookfirst_core::{branch_files, read_file, scan_with, Location, Node, Options, Report, Verdict, View};
+use lookfirst_core::{
+    branch_files, list_info, read_file, scan_with, update_list, ListInfo, Location, Node, Options, Report, Verdict,
+    View,
+};
 use serde::Serialize;
 use std::path::PathBuf;
 
@@ -38,10 +41,22 @@ async fn branch(path: String, repo: String, branch: String) -> Result<Vec<Node>,
     off_thread(move || branch_files(&PathBuf::from(path), &repo, &branch)).await
 }
 
+/// Which list of known threats is in use.
+#[tauri::command]
+fn threat_list() -> ListInfo {
+    list_info()
+}
+
+/// Downloads the latest list, if it is newer and signed.
+#[tauri::command]
+async fn update_threat_list() -> Result<ListInfo, String> {
+    off_thread(update_list).await?
+}
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan, read, branch])
+        .invoke_handler(tauri::generate_handler![scan, read, branch, threat_list, update_threat_list])
         .run(tauri::generate_context!())
         .expect("LookFirst couldn't start");
 }

@@ -12,7 +12,7 @@ pub(super) fn scripts(path: &str, content: &[u8]) -> Option<Finding> {
         return None;
     }
     let joined = found.iter().map(|(_, v)| v.as_str()).collect::<Vec<_>>().join("\n");
-    let bad = alarming(joined.as_bytes()) || IOCS.iter().any(|(ioc, _)| joined.contains(ioc));
+    let bad = alarming(joined.as_bytes()) || crate::indicators::current().iocs.iter().any(|i| joined.contains(&i.text));
     if in_node_modules(path) && !bad {
         return None; // installed packages run install scripts all the time
     }
