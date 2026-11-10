@@ -4,7 +4,7 @@
 
 Fake recruiters and "clients" send developers, and the people who hire them, archives that look like documentation or a code test. Inside is a file one of your tools runs for you: a Git hook that fires when you switch branches, a VS Code task that runs when you open the folder, an install script, a program named like a PDF. Nobody has to double-click anything.
 
-LookFirst opens the archive in place, tells you in plain words what would run and when, and gives a developer the details. If the archive holds a Git repository, it checks every branch and tag too, without running Git, and lists the branches it found. It never extracts, runs, or uploads anything. It works offline; the one thing that goes online is the **Update the list of known threats** button (or `lookfirst --update`), which only downloads, and only when you ask.
+LookFirst opens the archive in place, tells you in plain words what would run and when, and gives a developer the details. If the archive holds a Git repository, it checks every branch and tag too, without running Git, and lists the branches it found. It never extracts, runs, or uploads anything. It works offline. Two things go online, and only when you ask: **Update the list of known threats** (or `lookfirst --update`), and checking a Git repository by its web address, which only downloads.
 
 ![LookFirst warning "Don't open this" about an archive: a Git hook that runs code when someone switches branches, a VS Code task on the NDA branch that runs when the folder opens, and a program pretending to be a PDF. Below, the repository's branches, main and NDA, and its tag.](docs/result.png)
 
@@ -27,7 +27,14 @@ Only do this for an app you downloaded from this page.
 
 ## Use it
 
-Drop a file on the window, or click to choose one. It reads `.zip`, `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz` and `.7z` files, folders, and single files, including archives inside archives.
+Drop a file on the window, or click to choose one. It reads `.zip`, `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz` and `.7z` files, folders, and single files, Git bundles (`.bundle` files), and archives inside archives.
+
+**To check a repository before you clone it,** paste its address into the box under the drop area, or run `lookfirst https://github.com/owner/repo` or `lookfirst git@github.com:owner/repo.git`. LookFirst reads the repository the way Git does, without cloning it and without running Git, then looks at the newest commit of every branch and tag. Cloning is where a hook or a setting could fire; this never gets that far. A repository checked this way has no folder on disk, so Git hooks (which Git doesn't send) don't apply, and the file browser isn't available.
+
+**Private repositories** work two ways:
+
+- **ssh address** (`git@host:owner/repo.git`, `ssh://…`, or an alias from your ssh config): LookFirst runs your own `ssh` with your keys and ssh agent. It never asks a question, so a key that needs a passphrase must be in your agent, and the host must already be in your `known_hosts`.
+- **https address with an access token:** paste a read-only token in the app's "Private repository?" box, or set `LOOKFIRST_TOKEN` for the command line. The token is sent only to github.com, gitlab.com or bitbucket.org (add a self-hosted server with `LOOKFIRST_TOKEN_HOST=git.example.com`), so a link someone sends you can't collect it, and it is never saved or shown in a report.
 
 You get one of three answers:
 
@@ -94,7 +101,7 @@ lookfirst ~/Downloads/pack.zip
 ```
 
 ```
-lookfirst [--json] PATH...
+lookfirst [--json] PATH_OR_URL...
 lookfirst --update
 ```
 

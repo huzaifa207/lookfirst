@@ -12,6 +12,7 @@
   --check-bg: #fff6e5;
   --clear: #2b8a3e;
   --clear-bg: #ebfbee;
+  --topbar-h: 62px;
   --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   color-scheme: light dark;
 }
@@ -42,10 +43,22 @@ body {
   -webkit-user-select: none;
   user-select: none;
 }
-main { max-width: 680px; min-height: 100%; margin: 0 auto; padding: 24px 28px 20px; display: flex; flex-direction: column; }
+main { max-width: 960px; min-height: calc(100% - var(--topbar-h)); margin: 0 auto; padding: 6px 28px 20px; display: flex; flex-direction: column; }
 [hidden] { display: none !important; }
 
-header { display: flex; align-items: center; gap: 10px; margin-bottom: 22px; }
+/* The top bar spans the whole window: the brand on the left, the menu on the right. */
+.topbar { height: var(--topbar-h); display: flex; align-items: center; justify-content: space-between; padding: 0 28px; }
+.brand { display: flex; align-items: center; gap: 10px; }
+.menu { position: relative; }
+#menu-button { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+#menu-button svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+#menu-button:hover, #menu-button[aria-expanded="true"] { border-color: var(--accent); color: var(--accent); }
+#menu-button:focus-visible, #menu-list button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#menu-list { position: absolute; right: 0; top: 46px; z-index: 20; min-width: 290px; padding: 8px; background: var(--card); border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 10px 30px rgba(0, 0, 0, .28); }
+#menu-list .info { margin: 4px 10px 8px; color: var(--muted); font-size: 12.5px; }
+#menu-list button { display: block; width: 100%; text-align: left; padding: 9px 10px; border: 0; border-radius: 8px; background: none; color: var(--text); }
+#menu-list button:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 16%, transparent); }
+#menu-list button:disabled { color: var(--muted); cursor: default; }
 h1 { font-size: 18px; margin: 0; letter-spacing: -0.01em; }
 .logo { width: 30px; height: 30px; }
 .logo rect { fill: var(--accent); }
@@ -68,7 +81,17 @@ button { font: inherit; cursor: pointer; }
 #drop span { color: var(--muted); }
 .link { background: none; border: 0; color: var(--accent); padding: 10px 4px; margin: 4px auto 0; display: block; }
 .link:hover { text-decoration: underline; }
-.intro { color: var(--muted); text-align: center; max-width: 520px; margin: 18px auto 0; }
+#address-form { max-width: 640px; margin: 14px auto 0; text-align: center; }
+#address-form label { display: block; color: var(--muted); font-size: 13.5px; margin-bottom: 6px; }
+#address-form .row { display: flex; gap: 8px; }
+#address-form input { flex: 1; min-width: 0; font: inherit; height: 38px; padding: 0 12px; border-radius: 9px; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+#address-form input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+#address-form button { height: 38px; padding: 0 16px; border-radius: 9px; border: 1px solid var(--accent); background: var(--accent); color: var(--on-accent); font-weight: 600; }
+#address-form details { margin-top: 8px; text-align: left; }
+#address-form details p { color: var(--muted); font-size: 13px; margin: 6px 0; }
+#address-form details input { width: 100%; box-sizing: border-box; }
+#address-form small { display: block; color: var(--muted); margin-top: 6px; font-size: 12.5px; }
+.intro { color: var(--muted); text-align: center; max-width: 640px; margin: 18px auto 0; }
 
 #busy { text-align: center; padding: 70px 0; color: var(--muted); }
 #busy b { color: var(--text); word-break: break-all; }
@@ -124,7 +147,7 @@ li.danger .branch { background: var(--danger-bg); color: var(--danger); }
 .link.small { display: inline-block; margin: 2px 0 0; padding: 4px 0; font-size: 13.5px; }
 
 /* Browsing: a tree on the left, the file on the right */
-body.wide main { max-width: none; height: 100vh; padding-bottom: 8px; }
+body.wide main { max-width: none; height: calc(100vh - var(--topbar-h)); min-height: 0; padding-bottom: 8px; }
 body.wide footer { padding-top: 8px; }
 #browse { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
 .bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
@@ -154,7 +177,7 @@ body.wide footer { padding-top: 8px; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-left: 7px; vertical-align: middle; background: var(--check); }
 .dot.danger { background: var(--danger); }
 #viewer { padding: 0; display: flex; flex-direction: column; }
-#viewer > header { display: block; padding: 12px 14px 4px; position: sticky; top: 0; z-index: 1; background: var(--card); }
+#viewer > header { display: block; margin-bottom: 22px; padding: 12px 14px 4px; position: sticky; top: 0; z-index: 1; background: var(--card); }
 #viewer .flag { margin: 6px 14px 0; padding: 6px 10px; border-radius: 8px; font-size: 13.5px; font-weight: 600; background: var(--check-bg); color: var(--check); }
 #viewer header .flag { margin: 6px 0 0; }
 #viewer .flag.danger { background: var(--danger-bg); color: var(--danger); }

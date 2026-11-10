@@ -2,7 +2,7 @@ use super::*;
 
 /// Archives LookFirst opens when it finds them inside another (docx, jar and apk are zips too,
 /// but they're documents and programs, not packs of files).
-pub(super) const ARCHIVES: &[&str] = &["zip", "tar", "tgz", "gz", "tbz2", "bz2", "txz", "xz", "7z", "rar"];
+pub(super) const ARCHIVES: &[&str] = &["zip", "tar", "tgz", "gz", "tbz2", "bz2", "txz", "xz", "7z", "rar", "bundle"];
 pub(super) const BINARY: &[&str] = &[
     "png", "jpg", "jpeg", "gif", "webp", "ico", "icns", "bmp", "tiff", "psd", "ai", "sketch", "fig", "mp3", "mp4",
     "mov", "wav", "avi", "webm", "pdf", "ttf", "otf", "woff", "woff2", "eot", "so", "dylib", "dll", "wasm", "class",
@@ -58,6 +58,12 @@ pub(crate) fn wants_branch_content(path: &str) -> bool {
         || path.contains(".github/workflows/")
         || name.contains(".config.")
         || name.starts_with(".eslintrc")
+}
+
+/// What's read from a repository that has no folder on disk (a bundle, or a remote): the settings
+/// files above, plus scripts, since there is no checkout to read them from.
+pub(crate) fn wants_repo_content(path: &str) -> bool {
+    wants_branch_content(path) || (super::script::SCRIPTS.contains(&ext(path).as_str()) && !in_node_modules(path))
 }
 
 pub(crate) fn is_archive(path: &str) -> bool {

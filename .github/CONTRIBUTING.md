@@ -5,7 +5,7 @@ Thanks for helping keep this useful. Issues and pull requests are both welcome.
 ## The rules LookFirst keeps
 
 - **Read-only.** It never extracts, writes, runs, installs or imports anything it scans.
-- **Offline by default.** No telemetry. The only network use is the user-triggered download of the signed threat list (`lookfirst --update`, or the button in the app).
+- **Offline by default.** No telemetry. The only network use is user-triggered: the download of the signed threat list (`lookfirst --update`, or the button in the app), and reading a repository the user gave an https or ssh address for. An access token is only ever sent to github.com, gitlab.com, bitbucket.org or a host named in `LOOKFIRST_TOKEN_HOST`.
 - **Plain words first.** Every finding has a title anyone can act on, and a detail line for a developer.
 - **Every indicator needs a public source**: a vendor report, an advisory, or a write-up. Link it in the pull request.
 - **No false alarms on common files.** If a rule matches by name or pattern, check a normal project doesn't trip it.

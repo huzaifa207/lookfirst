@@ -1,20 +1,26 @@
 //! lookfirst: check an archive or folder for code that runs by itself, before you open it.
 
 use clap::Parser;
-use lookfirst_core::{list_info, scan_path, update_list, Level, Verdict};
+use lookfirst_core::{is_address, list_info, scan_path, scan_url, update_list, Level, Verdict};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-/// Checks archives (zip, tar, tar.gz/.bz2/.xz, 7z), folders, or single files for code that runs
+/// Checks archives (zip, tar, tar.gz/.bz2/.xz, 7z), Git bundles, folders, single files, or a Git
+/// repository at an https or ssh address, for code that runs
 /// without anyone choosing to run it: Git hooks and settings, VS Code tasks, Claude Code hooks, npm
 /// install scripts, programs dressed up as documents, and paths that escape the folder.
-/// Nothing is extracted, run, or sent anywhere (--update only downloads).
+/// Nothing is extracted or run. An address is read without cloning (nothing is sent but the requests
+/// Git itself makes), and --update downloads; everything else works offline.
+///
+/// Private repositories: an ssh address uses your own ssh keys; for https, set LOOKFIRST_TOKEN to an
+/// access token with read access (it is only sent to github.com, gitlab.com and bitbucket.org, or
+/// hosts named in LOOKFIRST_TOKEN_HOST).
 ///
 /// Exit status: 0 nothing found, 1 something found, 2 something couldn't be read.
 #[derive(Parser)]
 #[command(name = "lookfirst", disable_version_flag = true, arg_required_else_help = true)]
 struct Cli {
-    /// Archives, folders or files to check
+    /// Archives, folders or files to check, or https://host/owner/repo and git@host:owner/repo addresses
     #[arg(required_unless_present_any = ["update", "version"])]
     paths: Vec<PathBuf>,
     /// Print the reports as JSON
@@ -52,7 +58,17 @@ fn main() -> ExitCode {
         };
     }
     let json = cli.json;
-    let reports: Vec<_> = cli.paths.iter().map(|p| scan_path(p)).collect();
+    // A private repository over https: the token is only ever sent to github.com, gitlab.com or
+    // bitbucket.org (or hosts named in LOOKFIRST_TOKEN_HOST), never to an address someone else chose.
+    let token = std::env::var("LOOKFIRST_TOKEN").ok();
+    let reports: Vec<_> = cli
+        .paths
+        .iter()
+        .map(|p| match p.to_str() {
+            Some(url) if is_address(url) => scan_url(url, token.as_deref()),
+            _ => scan_path(p),
+        })
+        .collect();
 
     if json {
         let out: Vec<_> = reports.iter().map(|r| serde_json::json!({ "verdict": r.verdict(), "report": r })).collect();

@@ -39,6 +39,10 @@ pub(crate) struct Hash {
 pub(crate) struct Marker {
     pub text: String,
     pub campaign: String,
+    /// Infected code uses this as code, so inside matching quotes it is being named, not used
+    /// (a detection script's list of markers).
+    #[serde(default)]
+    pub mention_if_quoted: bool,
 }
 
 /// An address or marker from a published report, with where it was reported.

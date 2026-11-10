@@ -9,6 +9,7 @@ use std::sync::LazyLock;
 mod ai;
 mod filetype;
 mod git;
+mod markers;
 mod npm;
 mod paths;
 mod script;
@@ -16,7 +17,7 @@ mod text;
 mod vscode;
 
 use paths::*;
-pub(crate) use paths::{in_git_dir, is_archive, split_git, wants_branch_content, wants_content};
+pub(crate) use paths::{in_git_dir, is_archive, split_git, wants_branch_content, wants_content, wants_repo_content};
 use text::*;
 
 /// Docs and data quote commands and addresses (a README's `curl … | sh`, a write-up naming a
@@ -128,19 +129,7 @@ fn checks(path: &str, entry: &Entry, content: Option<&[u8]>, seen: &mut HashSet<
         out.extend(filetype::file_type(path, name)); // packages ship .cmd shims and the like
     }
     if let Some(content) = content.filter(|_| !PROSE.contains(&ext(name).as_str())) {
-        let list = crate::indicators::current();
-        let markers = list.markers.iter().map(|m| (&m.text, &m.campaign, &m.campaign));
-        let iocs = list.iocs.iter().map(|i| (&i.text, &i.source, &i.campaign));
-        if let Some((ioc, source, campaign)) = iocs.chain(markers).find(|(ioc, _, _)| contains(content, ioc)) {
-            let mut hit = finding(
-                Level::Danger,
-                path,
-                "This contains an address or marker from known malware.",
-                format!("It matches \"{ioc}\", from {source}."),
-            );
-            hit.campaign = Some(campaign.clone());
-            out.push(hit);
-        }
+        out.extend(markers::check(path, content));
     }
     if git_rel(path).is_none() {
         out.extend(campaigns::check(path, content));

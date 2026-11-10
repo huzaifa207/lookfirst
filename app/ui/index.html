@@ -9,8 +9,8 @@
   <script src="browse.js" defer></script>
 </head>
 <body>
-  <main>
-    <header>
+  <header class="topbar">
+    <div class="brand">
       <svg class="logo" viewBox="0 0 32 32" aria-hidden="true">
         <rect width="32" height="32" rx="8" />
         <circle cx="14" cy="14" r="6.5" />
@@ -18,7 +18,18 @@
         <path d="m11.4 14.2 1.9 1.9 3.4-3.6" />
       </svg>
       <h1>LookFirst</h1>
-    </header>
+    </div>
+    <div class="menu">
+      <button id="menu-button" type="button" aria-haspopup="menu" aria-expanded="false" aria-controls="menu-list" aria-label="Menu">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" /></svg>
+      </button>
+      <div id="menu-list" role="menu" hidden>
+        <p id="list-info" class="info"></p>
+        <button id="update-list" type="button" role="menuitem">Update the list of known threats</button>
+      </div>
+    </div>
+  </header>
+  <main>
 
     <!-- Start: drop a file, or pick one -->
     <section id="home">
@@ -31,6 +42,19 @@
         <span id="drop-help">.zip, .tar, .tar.gz or .7z, or click to choose one</span>
       </button>
       <button id="folder" class="link" type="button">Check a folder instead</button>
+      <form id="address-form">
+        <label for="address">Or check a Git repository online, without cloning it</label>
+        <div class="row">
+          <input id="address" type="text" inputmode="url" placeholder="https://github.com/owner/repo  or  git@github.com:owner/repo.git" autocomplete="off" spellcheck="false">
+          <button type="submit">Check</button>
+        </div>
+        <details>
+          <summary>Private repository?</summary>
+          <p>For an <b>ssh</b> address, LookFirst uses your own ssh keys. For an <b>https</b> address, paste an access token with read-only access. It is sent only to github.com, gitlab.com or bitbucket.org, used for this check, and never saved.</p>
+          <input id="token" type="password" placeholder="Access token (optional)" autocomplete="off" spellcheck="false" aria-label="Access token for a private repository">
+        </details>
+        <small>Reads the repository without cloning it and never runs Git. This is the one check that goes online.</small>
+      </form>
       <p class="intro">
         Before you open a project, a code test, or a pack of documents someone sent you, LookFirst checks it for
         files that run code by themselves: when you open the folder, switch a Git branch, or install it.
@@ -76,11 +100,7 @@
       </div>
     </section>
 
-    <footer>
-      Checked on this computer. Nothing is extracted, run, or uploaded.
-      <span id="list-info"></span>
-      <button id="update-list" class="link" type="button">Update the list of known threats</button>
-    </footer>
+    <footer>Checked on this computer. Nothing is extracted, run, or uploaded.</footer>
   </main>
   <div id="dropping" hidden><p>Drop it to check it</p></div>
 </body>

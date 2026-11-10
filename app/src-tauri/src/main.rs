@@ -2,8 +2,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use lookfirst_core::{
-    branch_files, list_info, read_file, scan_with, update_list, ListInfo, Location, Node, Options, Report, Verdict,
-    View,
+    branch_files, list_info, read_file, scan_url, scan_with, update_list, ListInfo, Location, Node, Options, Report,
+    Verdict, View,
 };
 use serde::Serialize;
 use std::path::PathBuf;
@@ -24,6 +24,16 @@ async fn off_thread<T: Send + 'static>(work: impl FnOnce() -> T + Send + 'static
 async fn scan(path: String) -> Result<Scanned, String> {
     off_thread(move || {
         let report = scan_with(&PathBuf::from(path), Options { list: true });
+        Scanned { verdict: report.verdict(), report }
+    })
+    .await
+}
+
+/// Checks a Git repository at an https or ssh address, without cloning it.
+#[tauri::command]
+async fn scan_address(url: String, token: Option<String>) -> Result<Scanned, String> {
+    off_thread(move || {
+        let report = scan_url(&url, token.as_deref());
         Scanned { verdict: report.verdict(), report }
     })
     .await
@@ -56,7 +66,7 @@ async fn update_threat_list() -> Result<ListInfo, String> {
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![scan, read, branch, threat_list, update_threat_list])
+        .invoke_handler(tauri::generate_handler![scan, scan_address, read, branch, threat_list, update_threat_list])
         .run(tauri::generate_context!())
         .expect("LookFirst couldn't start");
 }

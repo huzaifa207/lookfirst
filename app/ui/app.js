@@ -50,8 +50,19 @@ async function scan(path) {
   }
 }
 
-function render(path, { verdict, report }) {
-  current = { path, report };
+/** Checks a repository at an address. Nothing is on disk, so there is nothing to browse. */
+async function scanAddress(url, token) {
+  $("busy-name").textContent = fileName(url.replace(/\.git$/, ""));
+  show("busy");
+  try {
+    render(url, await invoke("scan_address", { url, token: token || null }), true);
+  } catch (e) {
+    render(url, { verdict: "unreadable", report: { files: 0, findings: [], repos: [], errors: [String(e)], has_git: false } }, true);
+  }
+}
+
+function render(path, { verdict, report }, remote = false) {
+  current = { path, report, remote };
   const v = VERDICTS[verdict];
   $("verdict").className = `verdict ${verdict}`;
   $("verdict-title").textContent = v.title;
@@ -92,7 +103,7 @@ function render(path, { verdict, report }) {
     view.className = "link small";
     view.textContent = "Show this file";
     view.addEventListener("click", () => openBrowser(locationFor(f)));
-    li.append(tag, title, ...(f.campaign ? [campaign] : []), ...(f.branch ? [branch] : []), where, view, details);
+    li.append(tag, title, ...(f.campaign ? [campaign] : []), ...(f.branch ? [branch] : []), where, ...(remote ? [] : [view]), details);
     list.append(li);
   }
   for (const e of report.errors) {
@@ -152,6 +163,13 @@ async function choose(directory) {
 
 $("drop").addEventListener("click", () => choose(false));
 $("folder").addEventListener("click", () => choose(true));
+$("address-form").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const url = $("address").value.trim();
+  const token = $("token").value.trim();
+  $("token").value = ""; // never kept
+  if (url) scanAddress(url, token);
+});
 $("again").addEventListener("click", () => show("home"));
 $("browse-files").addEventListener("click", () => openBrowser());
 $("copy").addEventListener("click", async () => {
@@ -171,6 +189,27 @@ getCurrentWebview().onDragDropEvent(({ payload }) => {
 });
 
 // The list of known threats: shown in the footer, refreshed only when the user asks.
+const menu = $("menu-list");
+const menuButton = $("menu-button");
+function toggleMenu(open) {
+  menu.hidden = !open;
+  menuButton.setAttribute("aria-expanded", String(open));
+  if (open) $("update-list").focus();
+}
+menuButton.addEventListener("click", (e) => {
+  e.stopPropagation();
+  toggleMenu(menu.hidden);
+});
+document.addEventListener("click", (e) => {
+  if (!menu.hidden && !menu.contains(e.target)) toggleMenu(false);
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && !menu.hidden) {
+    toggleMenu(false);
+    menuButton.focus();
+  }
+});
+
 function showList(list) {
   $("list-info").textContent = `Known-threat list: version ${list.version}, ${list.updated}.`;
 }

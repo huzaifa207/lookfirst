@@ -24,7 +24,7 @@ Ideas for LookFirst, roughly by value. Nothing here is promised or scheduled. To
    - Dev containers: `devcontainer.json` `postCreateCommand`
    - macOS `.pkg` and `.command` files
    - Linux `.desktop` files
-3. **Scan a Git URL or Git bundle without cloning.** ([#3](https://github.com/huzaifa207/lookfirst/issues/3)) Cloning is where hooks would fire.
+3. ~~**Scan a Git URL or Git bundle without cloning.**~~ ([#3](https://github.com/huzaifa207/lookfirst/issues/3)) Done for bundles, https addresses (with a token for private ones) and ssh addresses. Still open: browsing a remote's files in the app.
 4. **Check older commits and unmerged refs.** ([#4](https://github.com/huzaifa207/lookfirst/issues/4)) Today only branch tips are checked. Add stash, reflog and packed history.
 5. **Obfuscation and payload heuristics.** ([#5](https://github.com/huzaifa207/lookfirst/issues/5)) Base64 or hex blobs followed by `eval`, `Function(...)` or `child_process`, long minified lines in config files, and `curl | sh`.
 6. ~~**Updatable indicator feed.**~~ ([#6](https://github.com/huzaifa207/lookfirst/issues/6)) Done: a signed list, fetched only on request.

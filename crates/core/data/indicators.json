@@ -1,7 +1,7 @@
 {
  "format": 1,
- "version": 2,
- "updated": "2026-11-09",
+ "version": 3,
+ "updated": "2026-11-10",
  "sources": [
   "Datadog Security Labs indicators-of-compromise (keyv-campaign)",
   "Unit 42 Shai-Hulud ChainDrop write-up",
@@ -3478,23 +3478,28 @@
   },
   {
    "text": "global['!']",
-   "campaign": "PolinRider"
+   "campaign": "PolinRider",
+   "mention_if_quoted": true
   },
   {
    "text": "global['_V']",
-   "campaign": "PolinRider"
+   "campaign": "PolinRider",
+   "mention_if_quoted": true
   },
   {
    "text": "_$_1e42",
-   "campaign": "PolinRider"
+   "campaign": "PolinRider",
+   "mention_if_quoted": true
   },
   {
    "text": "rmcej%otb%",
-   "campaign": "PolinRider"
+   "campaign": "PolinRider",
+   "mention_if_quoted": true
   },
   {
    "text": "Cot%3t=shtP",
-   "campaign": "PolinRider"
+   "campaign": "PolinRider",
+   "mention_if_quoted": true
   }
  ],
  "iocs": [
