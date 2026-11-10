@@ -4,7 +4,7 @@
 
 Fake recruiters and "clients" send developers, and the people who hire them, archives that look like documentation or a code test. Inside is a file one of your tools runs for you: a Git hook that fires when you switch branches, a VS Code task that runs when you open the folder, an install script, a program named like a PDF. Nobody has to double-click anything.
 
-LookFirst opens the archive in place, tells you in plain words what would run and when, and gives a developer the details. If the archive holds a Git repository, it checks every branch and tag too, without running Git, and lists the branches it found. It never extracts, runs, or uploads anything. It works offline. Two things go online, and only when you ask: **Update the list of known threats** (or `lookfirst --update`), and checking a Git repository by its web address, which only downloads.
+LookFirst opens the archive in place, tells you in plain words what would run and when, and gives a developer the details. If it holds a Git repository, it checks every branch and tag too, without running Git, and lists the branches it found. You can also check a repository by its address, before you ever clone it. LookFirst never extracts, runs, or uploads anything, and it works offline. Two things go online, and only when you ask: checking a repository by its address, and **Update the list of known threats** (in the app's ☰ menu, or `lookfirst --update`). Both only download.
 
 ![LookFirst warning "Don't open this" about an archive: a Git hook that runs code when someone switches branches, a VS Code task on the NDA branch that runs when the folder opens, and a program pretending to be a PDF. Below, the repository's branches, main and NDA, and its tag.](docs/result.png)
 
@@ -29,9 +29,9 @@ Only do this for an app you downloaded from this page.
 
 Drop a file on the window, or click to choose one. It reads `.zip`, `.tar`, `.tar.gz`, `.tar.bz2`, `.tar.xz` and `.7z` files, folders, and single files, Git bundles (`.bundle` files), and archives inside archives.
 
-**To check a repository before you clone it,** paste its address into the box under the drop area, or run `lookfirst https://github.com/owner/repo` or `lookfirst git@github.com:owner/repo.git`. LookFirst reads the repository the way Git does, without cloning it and without running Git, then looks at the newest commit of every branch and tag. Cloning is where a hook or a setting could fire; this never gets that far. A repository checked this way has no folder on disk, so Git hooks (which Git doesn't send) don't apply, and the file browser isn't available.
+**To check a repository before you clone it,** paste its address into the box under the drop area, or run `lookfirst https://github.com/owner/repo` or `lookfirst git@github.com:owner/repo.git`. LookFirst reads the repository the way Git does, without cloning it and without running Git, then looks at the newest commit of every branch and tag. Cloning is where a hook or a setting could fire; this never gets that far. A repository checked this way has no folder on disk, so Git hooks (which Git doesn't send) don't apply, and the file browser isn't available. It reads the newest commit of up to 500 branches and tags, and the files that can run code, including scripts, which an archive scan reads from the open files instead.
 
-**Private repositories** work two ways:
+**Private repositories** work two ways, and LookFirst never stores a key or a token:
 
 - **ssh address** (`git@host:owner/repo.git`, `ssh://…`, or an alias from your ssh config): LookFirst runs your own `ssh` with your keys and ssh agent. It never asks a question, so a key that needs a passphrase must be in your agent, and the host must already be in your `known_hosts`.
 - **https address with an access token:** paste a read-only token in the app's "Private repository?" box, or set `LOOKFIRST_TOKEN` for the command line. The token is sent only to github.com, gitlab.com or bitbucket.org (add a self-hosted server with `LOOKFIRST_TOKEN_HOST=git.example.com`), so a link someone sends you can't collect it, and it is never saved or shown in a report.
@@ -42,13 +42,13 @@ You get one of three answers:
 - **Look closer before opening:** some files can run code, which is normal in many projects but worth a developer's look.
 - **No known traps found:** nothing it knows about. That isn't a promise the files are safe.
 
-When the archive holds a Git repository, the report lists its branches and tags, and marks anything found on a branch other than the one that's open: "On branch NDA, not in the files as they are now". Checking out that branch would bring it in.
+When there is a Git repository, the report lists its branches and tags, and marks anything found on a branch other than the one that's open: "On branch NDA, not in the files as they are now". Checking out that branch would bring it in. For a repository checked by address, the default branch (HEAD) counts as the open one.
 
 **Copy the report** puts the findings on your clipboard, to send to whoever checks it next.
 
 ### Browse the files
 
-**Browse the files** opens a read-only view of everything inside: the folders on the left, with a dot on anything flagged, and the file you pick on the right. **Show this file** on a finding jumps straight to it. Pick a branch or tag to see the files on it instead.
+**Browse the files** opens a read-only view of everything inside an archive or folder (not for a repository checked by address, which has nothing on disk): the folders on the left, with a dot on anything flagged, and the file you pick on the right. **Show this file** on a finding jumps straight to it. Pick a branch or tag to see the files on it instead.
 
 Files are read in memory and shown as plain text. Nothing is extracted, opened in another app, run, or rendered: HTML, scripts and links inside a file are shown as characters. Binary files aren't shown at all. The viewer also shows what code editors hide:
 
@@ -74,14 +74,16 @@ Files are read in memory and shown as plain text. Nothing is extracted, opened i
 | Paths that climb out of the folder, and links that point outside it | Extracted | Danger |
 | Password-protected files | Can't be checked | Check |
 | Any of the above on another branch or tag | That branch is checked out | Same as above, marked with the branch |
-| Addresses from published reports | | Danger |
+| Addresses and marker strings from published reports | | Danger |
+| A campaign's marker that is only named in quotes, as a detection script or write-up lists it | | Check |
+| A Git bundle or a repository at an address (the same checks, on the newest commit of each branch and tag) | | Same as above |
 
 ### Known campaigns
 
 On top of the general checks, LookFirst carries the indicators of two campaigns, ported from the scanners written for them. A match says which campaign it is.
 
-- **The Shai-Hulud npm worm** ([shai-hulud-scan](https://github.com/huzaifa207/shai-hulud-scan)): the 2,300+ infected package versions it published, in `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml` and `bun.lock` files and in installed packages; its loader in install scripts, VS Code tasks and Claude Code hooks; its payload files, by hash, marker strings and where it plants them; and the workflow it adds to copy every repository secret.
-- **PolinRider** ([polinrider-scan](https://github.com/huzaifa207/polinrider-scan)): its fake Font Awesome files and the VS Code task that runs one, code hidden in build-tool config files after a long run of spaces, its obfuscator's marker strings, its push script, and the line it adds to `.gitignore`.
+- **The Shai-Hulud npm worm** ([shai-hulud-scan](https://github.com/huzaifa207/shai-hulud-scan)): the 3,400+ infected package versions published in its ChainDrop and Shai-Hulud 2.0 waves, in `package-lock.json`, `npm-shrinkwrap.json`, `yarn.lock`, `pnpm-lock.yaml` and `bun.lock` files and in installed packages; its loader in install scripts, VS Code tasks and Claude Code hooks; its payload files, by hash, marker strings and where it plants them; and the workflow it adds to copy every repository secret.
+- **PolinRider** ([polinrider-scan](https://github.com/huzaifa207/polinrider-scan)): its fake Font Awesome files and the VS Code task that runs one, code hidden in build-tool config files after a long run of spaces, its obfuscator's marker strings, its push script, and the line it adds to `.gitignore`. A marker that a file only lists in quotes, the way a detection script or a write-up does, is a Check, since real infected code uses the marker as code.
 
 The checks on your GitHub account itself, like force-pushed commits or a repository the worm made to upload your secrets, stay with those two scanners.
 
@@ -101,9 +103,12 @@ lookfirst ~/Downloads/pack.zip
 ```
 
 ```
-lookfirst [--json] PATH_OR_URL...
+lookfirst [--json] PATH_OR_ADDRESS...
 lookfirst --update
+lookfirst --version
 ```
+
+`PATH_OR_ADDRESS` is an archive, a folder, a file, a `.bundle`, or a repository address (`https://…` or `git@host:owner/repo.git`). For a private repository, use an ssh address, or set `LOOKFIRST_TOKEN` to a read-only access token for https (it is only sent to github.com, gitlab.com and bitbucket.org, plus any host named in `LOOKFIRST_TOKEN_HOST`).
 
 `--update` downloads the newest list of known threats (infected package versions, file hashes, campaign strings). The list is signed by the maintainer; anything unsigned or older is thrown away, and the copy built into the program is used if the download fails. Nothing about you or your files is sent.
 
@@ -115,6 +120,7 @@ It exits with `0` when nothing is found, `1` when something is, and `2` when a f
 - **The viewer shows the first 2 MB and 20,000 lines of a file,** and lists up to 100,000 entries.
 - **Very large repositories are compared up to 200,000 files,** and Git data in an archive up to 512 MB. The report says when it stopped short.
 - **It knows patterns, not intent.** Heavily disguised code can get past it, and a normal project can trip a Check.
+- **Repositories by address have limits too.** It reads up to 500 branches and tags and 5,000 files per repository, and the report says when it stopped short. An https server must speak Git protocol version 2 with shallow and filter support (GitHub and GitLab do; some self-hosted servers don't). An ssh address needs OpenSSH's `ssh` on your computer, a key already in your agent, and the host in `known_hosts`.
 - **RAR files aren't supported yet.** It says so instead of guessing.
 - **No guarantees.** "No known traps found" means nothing it knows about, not that the files are safe.
 
@@ -127,7 +133,7 @@ cargo install tauri-cli --version "^2" --locked
 cd app && cargo tauri dev          # the desktop app
 ```
 
-The scanner is `crates/core`, the CLI `crates/cli`, and the app `app/` (Tauri, with a plain HTML window). Only the core's `update_list` touches the network.
+The scanner is `crates/core`, the CLI `crates/cli`, and the app `app/` (Tauri, with a plain HTML window). In the core, only `update_list` and the repository reader (`remote`) touch the network, and both run only when asked. The known threats live in `crates/core/data/indicators.json`, signed by `indicators.json.sig`; the [contributing guide](.github/CONTRIBUTING.md) explains how a new indicator is added.
 
 ## Sources
 
